@@ -6,5 +6,17 @@
   "description": "Parses target forms and source documents into clean structured evidence JSON for Form Memory Filler.",
   "tool_id": "tool-ervhint-form-document-parser-rfbj9n9w",
   "type": "node",
-  "enabled": true
+  "enabled": true,
+  "distribution": {
+    "active": "npm",
+    "profiles": {
+      "npm": {
+        "type": "npm",
+        "package_name": "anna-form-document-parser-ervhint",
+        "executable_name": "form-document-parser",
+        "version": "0.1.0",
+        "supports_protocol": true
+      }
+    }
+  }
 }

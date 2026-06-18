@@ -5,5 +5,13 @@
   "tagline": "AI-first form completion with user-approved Anna APS memory.",
   "description": "Form Memory Filler helps users complete form documents using source documents and user-approved memory saved in Anna APS. Anna AI reads each form dynamically, drafts answers for review, proposes reusable memory separately, and saves memory only after explicit user approval. Form Memory Filler builds up user-approved memory inside Anna APS, so every new form becomes easier to complete over time.",
   "category": "productivity",
-  "pricing_model": "free"
+  "pricing_model": "free",
+  "bundled_executas": {
+    "form-document-parser": {
+      "path": "./executas/form-document-parser"
+    },
+    "form-memory-store": {
+      "path": "./executas/form-memory-store"
+    }
+  }
 }

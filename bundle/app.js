@@ -7,9 +7,27 @@ const TOOL_BRIDGE_NOT_CONNECTED = {
   message: "Anna Tool bridge is not connected in this local UI preview.",
 };
 
+const BUNDLED_TOOL_HANDLES = {
+  formDocumentParser: "form-document-parser",
+  formMemoryStore: "form-memory-store",
+};
+
+function resolveToolId(handle, fallbackToolId) {
+  return (
+    (window.__ANNA_TOOL_IDS__ && window.__ANNA_TOOL_IDS__[handle]) ||
+    fallbackToolId
+  );
+}
+
 const TOOL_IDS = {
-  formDocumentParser: "tool-ervhint-form-document-parser-rfbj9n9w",
-  formMemoryStore: "tool-ervhint-form-memory-store-fm7jbhng",
+  formDocumentParser: resolveToolId(
+    BUNDLED_TOOL_HANDLES.formDocumentParser,
+    "tool-ervhint-form-document-parser-rfbj9n9w"
+  ),
+  formMemoryStore: resolveToolId(
+    BUNDLED_TOOL_HANDLES.formMemoryStore,
+    "tool-ervhint-form-memory-store-fm7jbhng"
+  ),
 };
 
 const DOCX_MIME_TYPE =
@@ -140,6 +158,9 @@ function exposeIntegrationApi() {
             fallbackAnnaCaps.tools &&
             typeof fallbackAnnaCaps.tools.invoke === "function"
         ),
+        annaToolIds: window.__ANNA_TOOL_IDS__ || null,
+        resolvedParserToolId: TOOL_IDS.formDocumentParser,
+        resolvedMemoryStoreToolId: TOOL_IDS.formMemoryStore,
         currentBridgeSource,
       };
     },
@@ -1055,6 +1076,12 @@ function renderBridgeDiagnostics() {
 
   const info = window.FormMemoryFillerDebug.getBridgeInfo();
   const rows = [
+    [
+      "window.__ANNA_TOOL_IDS__",
+      info.annaToolIds ? "available" : "not available",
+    ],
+    ["Parser Tool ID", info.resolvedParserToolId],
+    ["Memory Store Tool ID", info.resolvedMemoryStoreToolId],
     ["AnnaAppRuntime.connect()", info.hasAnnaClient ? "connected" : "not connected"],
     [
       "annaClient.tools.invoke",

@@ -7,5 +7,17 @@
   "tool_id": "tool-ervhint-form-memory-store-fm7jbhng",
   "type": "node",
   "enabled": true,
+  "distribution": {
+    "active": "npm",
+    "profiles": {
+      "npm": {
+        "type": "npm",
+        "package_name": "anna-form-memory-store-ervhint",
+        "executable_name": "form-memory-store",
+        "version": "0.1.0",
+        "supports_protocol": true
+      }
+    }
+  },
   "_comment": "Node.js Tool Executa for Form Memory Filler. Run with the package entrypoint `node src/main.js`. Replace tool_id with the server-minted Anna Tool ID before app manifest wiring. APS capability is declared by the runtime Tool manifest returned from src/main.js describe/initialize, following official storage examples; do not store raw source documents."
 }

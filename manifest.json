@@ -7,7 +7,7 @@
   ],
   "required_executas": [
     {
-      "tool_id": "tool-ervhint-form-memory-store-fm7jbhng",
+      "tool_id": "bundled:form-memory-store",
       "version": "latest"
     },
     {
@@ -15,7 +15,7 @@
       "version": "latest"
     },
     {
-      "tool_id": "tool-ervhint-form-document-parser-rfbj9n9w",
+      "tool_id": "bundled:form-document-parser",
       "version": "latest"
     }
   ],
@@ -51,8 +51,8 @@
     ],
     "host_api": {
       "tools": [
-        "required:tool-ervhint-form-memory-store-fm7jbhng",
-        "required:tool-ervhint-form-document-parser-rfbj9n9w"
+        "required:bundled:form-memory-store",
+        "required:bundled:form-document-parser"
       ],
       "chat": [],
       "artifact": [],
