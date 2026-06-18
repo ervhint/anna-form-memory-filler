@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Form Memory Filler</title>
+    <link rel="stylesheet" href="./style.css">
+    <script src="./app.js" type="module"></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <div>
+          <h1>Form Memory Filler</h1>
+          <p>Review, edit, and approve AI-drafted form answers before saving reusable memory.</p>
+        </div>
+      </header>
+
+      <main>
+        <section class="panel" id="upload-documents-section" aria-labelledby="upload-documents-heading">
+          <div class="section-heading">
+            <h2 id="upload-documents-heading">Upload documents</h2>
+            <p>Parse DOCX files into Evidence JSON before asking Anna to draft review data.</p>
+          </div>
+
+          <div class="upload-grid">
+            <div class="upload-field">
+              <label class="field-label" for="target-form-file">Target form DOCX</label>
+              <input id="target-form-file" type="file" accept=".docx">
+            </div>
+
+            <div class="upload-field">
+              <label class="field-label" for="source-document-files">Source documents DOCX</label>
+              <input id="source-document-files" type="file" accept=".docx" multiple>
+            </div>
+          </div>
+
+          <div class="section-actions">
+            <button id="parse-documents-button" class="primary-button" type="button">Parse documents</button>
+            <button id="clear-uploads-button" type="button">Clear uploads</button>
+          </div>
+
+          <div id="upload-status-message" class="upload-status upload-status-info" role="status">
+            Waiting for upload.
+          </div>
+
+          <div id="bridge-diagnostics" class="bridge-diagnostics" aria-live="polite">
+            Checking Anna bridge...
+          </div>
+        </section>
+
+        <section class="panel" id="parsed-evidence-section" aria-labelledby="parsed-evidence-heading">
+          <div class="section-heading">
+            <h2 id="parsed-evidence-heading">Parsed Evidence</h2>
+            <p>Structured parser output to copy into Anna for Review JSON generation.</p>
+          </div>
+
+          <div id="parsed-evidence-summary" class="card-list">
+            <!-- app.js renders parsed evidence summary here -->
+          </div>
+        </section>
+
+        <section class="panel" id="session-tools-section" aria-labelledby="session-tools-heading">
+          <div class="section-heading">
+            <h2 id="session-tools-heading">Review Data</h2>
+            <p>Load review data from Anna or use neutral test data during development.</p>
+          </div>
+
+          <div class="section-actions">
+            <button id="load-neutral-demo-button" type="button">Load neutral demo</button>
+          </div>
+
+          <label class="field-label" for="review-json-input">Developer review JSON</label>
+          <textarea
+            id="review-json-input"
+            class="json-import-input"
+            placeholder="Paste review JSON here for local testing."
+          ></textarea>
+
+          <div class="section-actions">
+            <button id="load-review-json-button" class="secondary-button" type="button">Load review JSON</button>
+          </div>
+        </section>
+
+        <section class="panel" id="form-overview-section" aria-labelledby="form-overview-heading">
+          <div class="section-heading">
+            <h2 id="form-overview-heading">Form Overview</h2>
+            <p>Summary of the current form-filling session.</p>
+          </div>
+
+          <div id="form-overview" class="overview-grid">
+            <!-- app.js renders overview cards here -->
+          </div>
+        </section>
+
+        <section class="panel" id="draft-answers-section" aria-labelledby="draft-answers-heading">
+          <div class="section-heading">
+            <h2 id="draft-answers-heading">Draft Answers</h2>
+            <p>Review and edit answers before treating them as final.</p>
+          </div>
+
+          <div id="draft-answers-list" class="card-list">
+            <!-- app.js renders draft answer cards here -->
+          </div>
+        </section>
+
+        <section class="panel" id="missing-information-section" aria-labelledby="missing-information-heading">
+          <div class="section-heading">
+            <h2 id="missing-information-heading">Missing Information</h2>
+            <p>Items that need user input before Anna can complete them.</p>
+          </div>
+
+          <div id="missing-information-list" class="card-list">
+            <!-- app.js renders missing information cards here -->
+          </div>
+        </section>
+
+        <section class="panel" id="proposed-memory-section" aria-labelledby="proposed-memory-heading">
+          <div class="section-heading">
+            <h2 id="proposed-memory-heading">Proposed Memory Updates</h2>
+            <p>Approve only the information you want Anna to remember for future forms.</p>
+          </div>
+
+          <div class="notice">
+            Memory is not saved automatically. Only approved items will be sent to Form Memory Store.
+          </div>
+
+          <div id="proposed-memory-list" class="card-list">
+            <!-- app.js renders proposed memory cards here -->
+          </div>
+        </section>
+
+        <section class="panel" id="saved-memory-section" aria-labelledby="saved-memory-heading">
+          <div class="section-heading">
+            <h2 id="saved-memory-heading">Saved Memory</h2>
+            <p>Reusable memory already approved by you.</p>
+          </div>
+
+          <div class="section-actions">
+            <button id="refresh-memory-button" type="button">Refresh Saved Memory</button>
+          </div>
+
+          <div id="saved-memory-list" class="card-list">
+            <!-- app.js renders saved memory cards here -->
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer">
+        <div id="status-message" role="status">
+          Ready.
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

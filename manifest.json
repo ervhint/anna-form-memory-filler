@@ -1,0 +1,86 @@
+{
+  "schema": 2,
+  "permissions": [
+    "tools.invoke",
+    "storage.read",
+    "storage.write"
+  ],
+  "required_executas": [
+    {
+      "tool_id": "tool-ervhint-form-memory-store-fm7jbhng",
+      "version": "latest"
+    },
+    {
+      "tool_id": "skill-ervhint-form-memory-filler-skill-x82q5eb6",
+      "version": "latest"
+    },
+    {
+      "tool_id": "tool-ervhint-form-document-parser-rfbj9n9w",
+      "version": "latest"
+    }
+  ],
+  "optional_executas": [],
+  "ui": {
+    "bundle": {
+      "format": "static-spa",
+      "entry": "index.html",
+      "external_origins": []
+    },
+    "views": [
+      {
+        "name": "main",
+        "title": "Form Memory Filler",
+        "default": true,
+        "entry": "index.html",
+        "min_size": {
+          "w": 360,
+          "h": 520
+        },
+        "default_size": {
+          "w": 900,
+          "h": 720
+        },
+        "max_size": {
+          "w": 1200,
+          "h": 960
+        },
+        "resizable": true,
+        "movable": true,
+        "single_instance": true
+      }
+    ],
+    "host_api": {
+      "tools": [
+        "required:tool-ervhint-form-memory-store-fm7jbhng",
+        "required:tool-ervhint-form-document-parser-rfbj9n9w"
+      ],
+      "chat": [],
+      "artifact": [],
+      "llm": [],
+      "fs": [],
+      "storage": [],
+      "prefs": [],
+      "window": [
+        "set_title"
+      ]
+    },
+    "csp_overrides": {
+      "img-src": [
+        "'self'",
+        "data:",
+        "blob:"
+      ],
+      "font-src": [
+        "'self'",
+        "data:"
+      ],
+      "style-src": [
+        "'self'"
+      ],
+      "script-src": [
+        "'self'"
+      ]
+    },
+    "state_merge": "last_writer_wins"
+  }
+}

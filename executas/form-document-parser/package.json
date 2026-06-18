@@ -1,0 +1,32 @@
+{
+  "name": "anna-form-document-parser-ervhint",
+  "version": "0.1.0",
+  "description": "Tool Executa for parsing target forms and source documents into structured evidence JSON for Form Memory Filler.",
+  "type": "commonjs",
+  "main": "src/main.js",
+  "bin": {
+    "form-document-parser": "src/main.js"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "dev": "node src/main.js"
+  },
+  "keywords": [
+    "anna",
+    "executa",
+    "form-memory-filler",
+    "document-parser",
+    "docx"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "mammoth": "^1.8.0"
+  },
+  "files": [
+    "src",
+    "executa.json"
+  ]
+}

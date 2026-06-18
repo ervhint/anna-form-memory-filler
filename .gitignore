@@ -1,0 +1,14 @@
+docs/
+sample-documents/
+node_modules/
+
+.anna/
+
+.env
+.env.*
+*.log
+
+executas/form-document-parser/test-*.json
+stdout.txt
+stderr.txt
+npx
