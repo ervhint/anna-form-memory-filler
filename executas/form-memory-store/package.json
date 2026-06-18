@@ -9,7 +9,12 @@
   },
   "scripts": {
     "start": "node src/main.js",
-    "dev": "node src/main.js"
+    "dev": "node src/main.js",
+    "build:binary": "npm run build:binary:win && npm run build:binary:linux && npm run build:binary:macos-x64 && npm run build:binary:macos-arm64",
+    "build:binary:win": "node node_modules/pkg/lib-es5/bin.js src/main.js --targets node18-win-x64 --output dist/form-memory-store-windows-x64.exe",
+    "build:binary:linux": "node node_modules/pkg/lib-es5/bin.js src/main.js --targets node18-linux-x64 --output dist/form-memory-store-linux-x64",
+    "build:binary:macos-x64": "node node_modules/pkg/lib-es5/bin.js src/main.js --targets node18-macos-x64 --output dist/form-memory-store-macos-x64",
+    "build:binary:macos-arm64": "node node_modules/pkg/lib-es5/bin.js src/main.js --targets node18-macos-arm64 --output dist/form-memory-store-macos-arm64"
   },
   "keywords": [
     "anna",
@@ -21,5 +26,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }

@@ -12,3 +12,6 @@ executas/form-document-parser/test-*.json
 stdout.txt
 stderr.txt
 npx
+
+# local binary build artifacts
+executas/*/dist/

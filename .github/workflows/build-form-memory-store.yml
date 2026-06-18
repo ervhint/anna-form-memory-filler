@@ -1,0 +1,71 @@
+name: Build Form Memory Store
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            script: build:binary:win
+            artifact: form-memory-store-windows-x64
+            path: executas/form-memory-store/dist/form-memory-store-windows-x64.exe
+          - name: linux-x64
+            os: ubuntu-latest
+            script: build:binary:linux
+            artifact: form-memory-store-linux-x64
+            path: executas/form-memory-store/dist/form-memory-store-linux-x64
+          - name: macos-x64
+            os: macos-13
+            script: build:binary:macos-x64
+            artifact: form-memory-store-macos-x64
+            path: executas/form-memory-store/dist/form-memory-store-macos-x64
+          - name: macos-arm64
+            os: macos-latest
+            script: build:binary:macos-arm64
+            artifact: form-memory-store-macos-arm64
+            path: executas/form-memory-store/dist/form-memory-store-macos-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: executas/form-memory-store/package-lock.json
+
+      - name: Install dependencies
+        working-directory: executas/form-memory-store
+        run: npm ci
+
+      - name: Build binary
+        working-directory: executas/form-memory-store
+        run: npm run ${{ matrix.script }}
+
+      - name: Smoke test Windows binary
+        if: matrix.name == 'windows-x64'
+        shell: pwsh
+        run: |
+          '{"jsonrpc":"2.0","id":1,"method":"health","params":{}}' | executas\form-memory-store\dist\form-memory-store-windows-x64.exe
+
+      - name: Smoke test POSIX binary
+        if: matrix.name != 'windows-x64'
+        shell: bash
+        run: |
+          chmod +x "${{ matrix.path }}"
+          echo '{"jsonrpc":"2.0","id":1,"method":"health","params":{}}' | "${{ matrix.path }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
