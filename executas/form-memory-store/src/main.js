@@ -3,6 +3,8 @@
 
 const readline = require("node:readline");
 
+const { setApsStorageClient } = require("./apsClient");
+
 const {
   getMemory,
   saveApprovedMemory,
@@ -11,6 +13,10 @@ const {
 } = require("./memoryStore");
 
 const PROTOCOL_VERSION = "2.0";
+const HOST_REQUEST_TIMEOUT_MS = 10000;
+
+let nextHostRequestId = 1;
+const pendingHostRequests = new Map();
 
 const MANIFEST = {
   display_name: "Form Memory Store",
@@ -18,6 +24,10 @@ const MANIFEST = {
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
   host_capabilities: ["aps.kv"],
+  storage: {
+    scopes: ["user"],
+    keys: ["memory/cards.v1"],
+  },
   tools: [
     {
       name: "get_memory",
@@ -124,6 +134,8 @@ async function handleJsonRpcRequest(request) {
 }
 
 function handleInitialize() {
+  ensureApsStorageClient();
+
   return {
     protocolVersion: PROTOCOL_VERSION,
     serverInfo: {
@@ -133,16 +145,20 @@ function handleInitialize() {
     capabilities: {
       storage: {
         kv: true,
+        scopes: ["user"],
       },
     },
   };
 }
 
 function handleDescribe() {
+  ensureApsStorageClient();
   return MANIFEST;
 }
 
 async function handleInvoke(params = {}) {
+  ensureApsStorageClient();
+
   const toolName = params.tool || params.name;
   const input =
     params.arguments && typeof params.arguments === "object"
@@ -236,8 +252,133 @@ function safeHandleError(error) {
   return createToolError(code, message);
 }
 
+function ensureApsStorageClient() {
+  setApsStorageClient(createReverseRpcStorageClient());
+}
+
+function createReverseRpcStorageClient() {
+  return {
+    async get(key, options = {}) {
+      const params = {
+        key,
+        scope: options.scope || "user",
+      };
+
+      return requestHostWithMethodFallback(
+        ["aps.kv.get", "storage.get", "hostStorageGet"],
+        params
+      );
+    },
+
+    async set(key, value, options = {}) {
+      const params = {
+        key,
+        value,
+        scope: options.scope || "user",
+      };
+
+      return requestHostWithMethodFallback(
+        ["aps.kv.set", "storage.set", "hostStorageSet"],
+        params
+      );
+    },
+  };
+}
+
+async function requestHostWithMethodFallback(methods, params) {
+  let lastError = null;
+
+  for (const method of methods) {
+    try {
+      return await sendHostRequest(method, params);
+    } catch (error) {
+      lastError = error;
+
+      if (!isMethodNotFoundError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error("Anna APS storage host method is unavailable.");
+}
+
+function isMethodNotFoundError(error) {
+  return Boolean(
+    error &&
+      (error.code === -32601 ||
+        error.code === "METHOD_NOT_FOUND" ||
+        error.code === "UNKNOWN_METHOD")
+  );
+}
+
+function sendHostRequest(method, params) {
+  const id = `host_${nextHostRequestId++}`;
+  const request = {
+    jsonrpc: "2.0",
+    id,
+    method,
+    params,
+  };
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingHostRequests.delete(id);
+      const error = new Error(
+        "Anna APS storage host did not respond. Please update/reinstall the app and allow persistent storage permission for Form Memory Store."
+      );
+      error.code = "APS_HOST_TIMEOUT";
+      reject(error);
+    }, HOST_REQUEST_TIMEOUT_MS);
+
+    pendingHostRequests.set(id, {
+      resolve,
+      reject,
+      timeout,
+    });
+
+    sendMessage(request);
+  });
+}
+
+function handleHostResponse(message) {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(message, "id")) {
+    return false;
+  }
+
+  const pending = pendingHostRequests.get(message.id);
+
+  if (!pending) {
+    return false;
+  }
+
+  clearTimeout(pending.timeout);
+  pendingHostRequests.delete(message.id);
+
+  if (message.error) {
+    const error = new Error(
+      message.error.message || "Anna APS storage host returned an error."
+    );
+    error.code = message.error.code || "APS_HOST_ERROR";
+    error.details = message.error.data || null;
+    pending.reject(error);
+    return true;
+  }
+
+  pending.resolve(message.result);
+  return true;
+}
+
+function sendMessage(message) {
+  process.stdout.write(`${JSON.stringify(message)}\n`);
+}
+
 function sendResponse(response) {
-  process.stdout.write(`${JSON.stringify(response)}\n`);
+  sendMessage(response);
 }
 
 function parseJsonRpcLine(line) {
@@ -274,6 +415,10 @@ function main() {
       sendResponse(
         createJsonRpcErrorResponse(null, -32700, "Parse error")
       );
+      return;
+    }
+
+    if (handleHostResponse(parsed.request)) {
       return;
     }
 

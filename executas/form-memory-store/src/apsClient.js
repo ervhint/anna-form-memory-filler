@@ -2,7 +2,9 @@
 
 const MEMORY_KEY = "memory/cards.v1";
 const MEMORY_VERSION = 1;
-const MEMORY_SCOPE = "app";
+const MEMORY_SCOPE = "user";
+const APS_NOT_CONNECTED_MESSAGE =
+  "Anna APS storage is not connected or not granted. Please update/reinstall the app and allow persistent storage permission for Form Memory Store.";
 
 /*
  * Anna APS connection point.
@@ -18,6 +20,10 @@ const MEMORY_SCOPE = "app";
  */
 let apsStorageClient = null;
 
+function setApsStorageClient(storageClient) {
+  apsStorageClient = storageClient || null;
+}
+
 function getEmptyMemoryData() {
   return {
     version: MEMORY_VERSION,
@@ -27,7 +33,7 @@ function getEmptyMemoryData() {
 
 async function readMemoryFromAps() {
   if (!apsStorageClient) {
-    return getEmptyMemoryData();
+    throw createStorageError("APS_NOT_CONNECTED", APS_NOT_CONNECTED_MESSAGE);
   }
 
   try {
@@ -45,6 +51,14 @@ async function readMemoryFromAps() {
 
     return normalizeMemoryData(rawValue);
   } catch (error) {
+    if (isStorageConnectionError(error)) {
+      throw createStorageError(
+        "APS_NOT_CONNECTED",
+        APS_NOT_CONNECTED_MESSAGE,
+        error
+      );
+    }
+
     throw createStorageError(
       "APS_READ_FAILED",
       "Failed to read memory from Anna APS.",
@@ -72,12 +86,31 @@ async function writeMemoryToAps(memoryData) {
       saved: true,
     };
   } catch (error) {
+    if (isStorageConnectionError(error)) {
+      throw createStorageError(
+        "APS_NOT_CONNECTED",
+        APS_NOT_CONNECTED_MESSAGE,
+        error
+      );
+    }
+
     throw createStorageError(
       "APS_WRITE_FAILED",
       "Failed to write memory to Anna APS.",
       error
     );
   }
+}
+
+function isStorageConnectionError(error) {
+  return Boolean(
+    error &&
+      (error.code === "APS_HOST_TIMEOUT" ||
+        error.code === "APS_HOST_ERROR" ||
+        error.code === -32601 ||
+        error.code === "METHOD_NOT_FOUND" ||
+        error.code === "UNKNOWN_METHOD")
+  );
 }
 
 function normalizeMemoryData(rawValue) {
@@ -127,7 +160,9 @@ function createStorageError(code, message, cause) {
 module.exports = {
   MEMORY_KEY,
   MEMORY_VERSION,
+  MEMORY_SCOPE,
   getEmptyMemoryData,
+  setApsStorageClient,
   readMemoryFromAps,
   writeMemoryToAps,
   normalizeMemoryData,
