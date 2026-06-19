@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "executa_type": "tool",
   "description": "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
-  "tool_id": "tool-ervhint-form-memory-store-fm7jbhng",
+  "tool_id": "tool-ervhint-form-memory-store-nrbjrzf3",
   "type": "node",
   "enabled": true,
   "host_capabilities": [
+    "storage.user",
     "aps.kv"
   ],
   "storage": {
@@ -58,6 +59,6 @@
       }
     }
   },
-  "_comment": "Node.js Tool Executa for Form Memory Filler. Run with the package entrypoint `node src/main.js`. Replace tool_id with the server-minted Anna Tool ID before app manifest wiring. APS capability is declared by the runtime Tool manifest returned from src/main.js describe/initialize, following official storage examples; do not store raw source documents."
+  "_comment": "Node.js Tool Executa for Form Memory Filler. Run with the package entrypoint `node src/main.js`. Replace tool_id with the server-minted Anna Tool ID before app manifest wiring. APS/storage capability is declared by the runtime Tool manifest returned from src/main.js describe/initialize, following official storage examples; do not store raw source documents."
 }
 

@@ -24,7 +24,7 @@ const MANIFEST = {
   version: "0.1.0",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
-  host_capabilities: ["aps.kv"],
+  host_capabilities: ["storage.user", "aps.kv"],
   storage: {
     scopes: ["user"],
     keys: ["memory/cards.v1"],
@@ -148,7 +148,10 @@ function handleInitialize() {
       version: MANIFEST.version,
     },
     capabilities: {
-      storage: {},
+      storage: {
+        kv: true,
+        scopes: ["user"],
+      },
     },
   };
 }
