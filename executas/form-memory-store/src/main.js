@@ -19,11 +19,12 @@ let nextHostRequestId = 1;
 const pendingHostRequests = new Map();
 
 const MANIFEST = {
+  name: "form-memory-store",
   display_name: "Form Memory Store",
   version: "0.1.0",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
-  host_capabilities: ["storage.user"],
+  host_capabilities: ["aps.kv"],
   storage: {
     scopes: ["user"],
     keys: ["memory/cards.v1"],
@@ -138,15 +139,16 @@ function handleInitialize() {
 
   return {
     protocolVersion: PROTOCOL_VERSION,
+    server_info: {
+      name: MANIFEST.name,
+      version: MANIFEST.version,
+    },
     serverInfo: {
-      name: MANIFEST.display_name,
+      name: MANIFEST.name,
       version: MANIFEST.version,
     },
     capabilities: {
-      storage: {
-        kv: true,
-        scopes: ["user"],
-      },
+      storage: {},
     },
   };
 }
@@ -314,7 +316,7 @@ function isMethodNotFoundError(error) {
 }
 
 function sendHostRequest(method, params) {
-  const id = `host_${nextHostRequestId++}`;
+  const id = nextHostRequestId++;
   const request = {
     jsonrpc: "2.0",
     id,
@@ -452,3 +454,7 @@ module.exports = {
   parseJsonRpcLine,
   main,
 };
+
+
+
+
