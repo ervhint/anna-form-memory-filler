@@ -17,22 +17,22 @@
         "supports_protocol": true,
         "binary_urls": {
           "linux-x64": {
-            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-memory-store-linux-x64.zip",
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.1/form-memory-store-linux-x64.zip",
             "format": "zip",
             "entrypoint": "form-memory-store-linux-x64"
           },
           "macos-arm64": {
-            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-memory-store-macos-arm64.zip",
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.1/form-memory-store-macos-arm64.zip",
             "format": "zip",
             "entrypoint": "form-memory-store-macos-arm64"
           },
           "macos-x64": {
-            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-memory-store-macos-x64.zip",
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.1/form-memory-store-macos-x64.zip",
             "format": "zip",
             "entrypoint": "form-memory-store-macos-x64"
           },
           "windows-x64": {
-            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-memory-store-windows-x64.zip",
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.1/form-memory-store-windows-x64.zip",
             "format": "zip",
             "entrypoint": "form-memory-store-windows-x64.exe"
           }
