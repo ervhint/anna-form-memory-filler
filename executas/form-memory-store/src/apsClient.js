@@ -107,7 +107,12 @@ function isStorageConnectionError(error) {
     error &&
       (error.code === "APS_HOST_TIMEOUT" ||
         error.code === "APS_HOST_ERROR" ||
+        error.code === -32008 ||
+        error.code === -32021 ||
         error.code === -32601 ||
+        error.code === "NOT_NEGOTIATED" ||
+        error.code === "STORAGE_NOT_GRANTED" ||
+        error.code === "STORAGE_ERR_NOT_GRANTED" ||
         error.code === "METHOD_NOT_FOUND" ||
         error.code === "UNKNOWN_METHOD")
   );
@@ -152,6 +157,11 @@ function createStorageError(code, message, cause) {
 
   if (cause) {
     error.cause = cause;
+    error.details = {
+      host_code: cause.code || null,
+      host_message: cause.message || null,
+      host_details: cause.details || null,
+    };
   }
 
   return error;

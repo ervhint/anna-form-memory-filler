@@ -248,8 +248,9 @@ function safeHandleError(error) {
     error && error.message
       ? error.message
       : "Unexpected error in Form Memory Store.";
+  const details = error && error.details ? error.details : null;
 
-  return createToolError(code, message);
+  return createToolError(code, message, details);
 }
 
 function ensureApsStorageClient() {
