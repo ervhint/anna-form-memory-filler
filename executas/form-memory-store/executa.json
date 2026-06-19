@@ -7,6 +7,17 @@
   "tool_id": "tool-ervhint-form-memory-store-fm7jbhng",
   "type": "node",
   "enabled": true,
+  "host_capabilities": [
+    "storage.user"
+  ],
+  "storage": {
+    "scopes": [
+      "user"
+    ],
+    "keys": [
+      "memory/cards.v1"
+    ]
+  },
   "distribution": {
     "active": "binary",
     "profiles": {

@@ -23,7 +23,7 @@ const MANIFEST = {
   version: "0.1.0",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
-  host_capabilities: ["aps.kv"],
+  host_capabilities: ["storage.user"],
   storage: {
     scopes: ["user"],
     keys: ["memory/cards.v1"],
@@ -265,7 +265,7 @@ function createReverseRpcStorageClient() {
       };
 
       return requestHostWithMethodFallback(
-        ["aps.kv.get", "storage.get", "hostStorageGet"],
+        ["storage/get", "storage.get", "hostStorageGet"],
         params
       );
     },
@@ -278,7 +278,7 @@ function createReverseRpcStorageClient() {
       };
 
       return requestHostWithMethodFallback(
-        ["aps.kv.set", "storage.set", "hostStorageSet"],
+        ["storage/set", "storage.set", "hostStorageSet"],
         params
       );
     },
