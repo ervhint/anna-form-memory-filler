@@ -8,8 +8,36 @@
   "type": "node",
   "enabled": true,
   "distribution": {
-    "active": "npm",
+    "active": "binary",
     "profiles": {
+      "binary": {
+        "type": "binary",
+        "executable_name": "form-document-parser",
+        "version": "0.1.0",
+        "supports_protocol": true,
+        "binary_urls": {
+          "linux-x64": {
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-document-parser-linux-x64.zip",
+            "format": "zip",
+            "entrypoint": "form-document-parser-linux-x64"
+          },
+          "macos-arm64": {
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-document-parser-macos-arm64.zip",
+            "format": "zip",
+            "entrypoint": "form-document-parser-macos-arm64"
+          },
+          "macos-x64": {
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-document-parser-macos-x64.zip",
+            "format": "zip",
+            "entrypoint": "form-document-parser-macos-x64"
+          },
+          "windows-x64": {
+            "url": "https://github.com/ervhint/anna-form-memory-filler/releases/download/executa-binaries-v0.1.0/form-document-parser-windows-x64.zip",
+            "format": "zip",
+            "entrypoint": "form-document-parser-windows-x64.exe"
+          }
+        }
+      },
       "npm": {
         "type": "npm",
         "package_name": "anna-form-document-parser-ervhint",
