@@ -1,6 +1,6 @@
 {
   "name": "anna-form-memory-store-ervhint",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "Tool Executa for storing and retrieving user-approved reusable memory cards for Form Memory Filler.",
   "type": "commonjs",
   "main": "src/main.js",

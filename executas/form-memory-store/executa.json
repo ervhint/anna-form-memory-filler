@@ -1,7 +1,7 @@
 {
   "slug": "form-memory-store",
   "name": "Form Memory Store",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "executa_type": "tool",
   "description": "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
   "tool_id": "tool-ervhint-form-memory-store-nrbjrzf3",
@@ -25,7 +25,7 @@
       "binary": {
         "type": "binary",
         "executable_name": "form-memory-store",
-        "version": "0.1.0",
+        "version": "0.1.4",
         "supports_protocol": true,
         "binary_urls": {
           "linux-x64": {
@@ -54,7 +54,7 @@
         "type": "npm",
         "package_name": "anna-form-memory-store-ervhint",
         "executable_name": "form-memory-store",
-        "version": "0.1.0",
+        "version": "0.1.4",
         "supports_protocol": true
       }
     }
