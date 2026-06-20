@@ -1,7 +1,7 @@
 {
   "slug": "form-document-parser",
   "name": "Form Document Parser",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "executa_type": "tool",
   "description": "Parses target forms and source documents into clean structured evidence JSON for Form Memory Filler.",
   "tool_id": "tool-ervhint-form-document-parser-rfbj9n9w",
@@ -13,7 +13,7 @@
       "binary": {
         "type": "binary",
         "executable_name": "form-document-parser",
-        "version": "0.1.0",
+        "version": "0.1.2",
         "supports_protocol": true,
         "binary_urls": {
           "linux-x64": {
@@ -42,7 +42,7 @@
         "type": "npm",
         "package_name": "anna-form-document-parser-ervhint",
         "executable_name": "form-document-parser",
-        "version": "0.1.0",
+        "version": "0.1.2",
         "supports_protocol": true
       }
     }
