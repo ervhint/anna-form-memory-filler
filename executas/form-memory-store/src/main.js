@@ -135,7 +135,7 @@ async function handleJsonRpcRequest(request) {
 }
 
 function handleInitialize() {
-  ensureApsStorageClient();
+  setApsStorageClient(null);
 
   return {
     protocolVersion: PROTOCOL_VERSION,
@@ -147,24 +147,54 @@ function handleInitialize() {
       name: MANIFEST.name,
       version: MANIFEST.version,
     },
+    client_capabilities: {
+      storage: {},
+    },
     capabilities: {
-      storage: {
-        kv: true,
-        scopes: ["user"],
-      },
+      storage: {},
     },
   };
 }
 
 function handleDescribe() {
-  ensureApsStorageClient();
+  setApsStorageClient(null);
   return MANIFEST;
 }
 
-async function handleInvoke(params = {}) {
-  ensureApsStorageClient();
+function extractStorageToken(params = {}) {
+  return (
+    params.storage_token ||
+    params.storageToken ||
+    (params.context && params.context.storage_token) ||
+    (params.context && params.context.storageToken) ||
+    (params.meta && params.meta.storage_token) ||
+    (params.meta && params.meta.storageToken) ||
+    (params.authorization && params.authorization.storage_token) ||
+    (params.authorization && params.authorization.storageToken) ||
+    null
+  );
+}
 
+function createMissingStorageTokenError(toolName) {
+  return createToolError(
+    "APS_NOT_CONNECTED",
+    "Anna did not provide storage_token for this invoke. Check client_capabilities.storage, host_capabilities, app reinstall/update, and persistent storage permission grant.",
+    {
+      tool: "form-memory-store",
+      operation: toolName || null,
+      storage_scope: "user",
+      storage_key: "memory/cards.v1",
+    }
+  );
+}
+
+function toolNeedsStorage(toolName) {
+  return Object.prototype.hasOwnProperty.call(TOOL_DISPATCH, toolName);
+}
+
+async function handleInvoke(params = {}) {
   const toolName = params.tool || params.name;
+  const storageToken = extractStorageToken(params);
   const input =
     params.arguments && typeof params.arguments === "object"
       ? params.arguments
@@ -182,11 +212,19 @@ async function handleInvoke(params = {}) {
     return createToolError("UNKNOWN_TOOL", `Unknown tool function: ${toolName}`);
   }
 
+  if (toolNeedsStorage(toolName) && !storageToken) {
+    return createMissingStorageTokenError(toolName);
+  }
+
+  ensureApsStorageClient(storageToken);
+
   try {
     const data = await handler(input);
     return createToolSuccess(data, toolName);
   } catch (error) {
     return safeHandleError(error);
+  } finally {
+    setApsStorageClient(null);
   }
 }
 
@@ -258,20 +296,26 @@ function safeHandleError(error) {
   return createToolError(code, message, details);
 }
 
-function ensureApsStorageClient() {
-  setApsStorageClient(createReverseRpcStorageClient());
+function ensureApsStorageClient(storageToken) {
+  if (!storageToken) {
+    setApsStorageClient(null);
+    return;
+  }
+
+  setApsStorageClient(createReverseRpcStorageClient(storageToken));
 }
 
-function createReverseRpcStorageClient() {
+function createReverseRpcStorageClient(storageToken) {
   return {
     async get(key, options = {}) {
       const params = {
         key,
         scope: options.scope || "user",
+        storage_token: storageToken,
       };
 
       return requestHostWithMethodFallback(
-        ["storage/get", "storage.get", "hostStorageGet"],
+        ["storage/kv_get", "storage/get", "storage.get", "hostStorageGet"],
         params
       );
     },
@@ -281,10 +325,11 @@ function createReverseRpcStorageClient() {
         key,
         value,
         scope: options.scope || "user",
+        storage_token: storageToken,
       };
 
       return requestHostWithMethodFallback(
-        ["storage/set", "storage.set", "hostStorageSet"],
+        ["storage/kv_set", "storage/set", "storage.set", "hostStorageSet"],
         params
       );
     },
