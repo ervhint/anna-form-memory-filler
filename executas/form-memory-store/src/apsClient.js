@@ -1,6 +1,6 @@
 "use strict";
 
-const MEMORY_KEY = "memory/cards.v1";
+const MEMORY_KEY = "form-memory-filler/cards.v1";
 const MEMORY_VERSION = 1;
 const MEMORY_SCOPE = "user";
 const APS_NOT_CONNECTED_MESSAGE =

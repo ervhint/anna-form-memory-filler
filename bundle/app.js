@@ -755,7 +755,7 @@ async function generateDraftAnswersFromEvidence() {
             },
           },
         ],
-        maxTokens: 4096,
+        maxTokens: 12000,
         temperature: 0.2,
       },
       { timeoutMs: 180000 }

@@ -21,13 +21,13 @@ const pendingHostRequests = new Map();
 const MANIFEST = {
   name: "form-memory-store",
   display_name: "Form Memory Store",
-  version: "0.1.5",
+  version: "0.1.6",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
   host_capabilities: ["aps.kv"],
   storage: {
     scopes: ["user"],
-    keys: ["memory/cards.v1"],
+    keys: ["form-memory-filler/cards.v1"],
   },
   tools: [
     {
@@ -183,7 +183,7 @@ function createMissingStorageTokenError(toolName) {
       tool: "form-memory-store",
       operation: toolName || null,
       storage_scope: "user",
-      storage_key: "memory/cards.v1",
+      storage_key: "form-memory-filler/cards.v1",
     }
   );
 }
