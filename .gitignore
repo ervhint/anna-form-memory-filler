@@ -15,3 +15,6 @@ npx
 
 # local binary build artifacts
 executas/*/dist/
+
+# submission archive
+anna-form-memory-filler-v1.zip
