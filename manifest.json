@@ -5,6 +5,9 @@
     "storage.read",
     "storage.write"
   ],
+  "host_capabilities": [
+    "aps.kv"
+  ],
   "required_executas": [
     {
       "tool_id": "bundled:form-memory-store",
@@ -37,12 +40,12 @@
           "h": 520
         },
         "default_size": {
-          "w": 900,
+          "w": 1200,
           "h": 720
         },
         "max_size": {
-          "w": 1200,
-          "h": 960
+          "w": 1400,
+          "h": 1000
         },
         "resizable": true,
         "movable": true,
@@ -56,9 +59,13 @@
       ],
       "chat": [],
       "artifact": [],
-      "llm": [],
+      "llm": [
+        "complete"
+      ],
       "fs": [],
-      "storage": [],
+      "storage": [
+        "allow all"
+      ],
       "prefs": [],
       "window": [
         "set_title"

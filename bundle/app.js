@@ -48,6 +48,8 @@ const appState = {
   evidenceJson: null,
   parseStatus: "idle",
   parseError: null,
+  draftStatus: "idle",
+  draftError: null,
 };
 
 async function init() {
@@ -78,6 +80,7 @@ function attachEventListeners() {
   const importButton = document.getElementById("load-review-json-button");
   const parseButton = document.getElementById("parse-documents-button");
   const clearUploadsButton = document.getElementById("clear-uploads-button");
+  const generateButton = document.getElementById("generate-draft-answers-button");
 
   if (refreshButton) {
     refreshButton.addEventListener("click", handleRefreshSavedMemory);
@@ -97,6 +100,10 @@ function attachEventListeners() {
 
   if (clearUploadsButton) {
     clearUploadsButton.addEventListener("click", handleClearUploads);
+  }
+
+  if (generateButton) {
+    generateButton.addEventListener("click", handleGenerateDraftAnswers);
   }
 
   if (app) {
@@ -152,11 +159,32 @@ function exposeIntegrationApi() {
             fallbackAnna.tools &&
             typeof fallbackAnna.tools.invoke === "function"
         ),
+        hasWindowAnnaAgent: Boolean(fallbackAnna && fallbackAnna.agent),
+        hasWindowAnnaChat: Boolean(fallbackAnna && fallbackAnna.chat),
+        hasWindowAnnaLlmComplete: Boolean(
+          fallbackAnna &&
+            fallbackAnna.llm &&
+            typeof fallbackAnna.llm.complete === "function"
+        ),
         hasWindowAnnaCaps: Boolean(fallbackAnnaCaps),
         hasWindowAnnaCapsInvoke: Boolean(
           fallbackAnnaCaps &&
             fallbackAnnaCaps.tools &&
             typeof fallbackAnnaCaps.tools.invoke === "function"
+        ),
+        hasWindowAnnaCapsAgent: Boolean(fallbackAnnaCaps && fallbackAnnaCaps.agent),
+        hasWindowAnnaCapsChat: Boolean(fallbackAnnaCaps && fallbackAnnaCaps.chat),
+        hasWindowAnnaCapsLlmComplete: Boolean(
+          fallbackAnnaCaps &&
+            fallbackAnnaCaps.llm &&
+            typeof fallbackAnnaCaps.llm.complete === "function"
+        ),
+        hasAnnaClientAgent: Boolean(annaClient && annaClient.agent),
+        hasAnnaClientChat: Boolean(annaClient && annaClient.chat),
+        hasAnnaClientLlmComplete: Boolean(
+          annaClient &&
+            annaClient.llm &&
+            typeof annaClient.llm.complete === "function"
         ),
         annaToolIds: window.__ANNA_TOOL_IDS__ || null,
         resolvedParserToolId: TOOL_IDS.formDocumentParser,
@@ -172,7 +200,6 @@ function renderApp() {
   renderFormOverview();
   renderDraftAnswers();
   renderMissingInformation();
-  renderProposedMemoryUpdates();
   renderSavedMemory();
   renderStatusMessage();
 }
@@ -273,19 +300,12 @@ function renderFormOverview() {
   }
 
   const overview = appState.formOverview;
-  const totalRequirements =
-    appState.draftAnswers.length + appState.missingInformation.length;
-  const pendingMemoryCount = appState.proposedMemoryUpdates.filter(
-    (item) => getMemoryApprovalState(item) === "pending"
-  ).length;
 
   target.innerHTML = [
     renderOverviewCard("Form Title", overview.title || "Untitled form"),
     renderOverviewCard("Purpose", overview.purpose || "Not specified"),
     renderOverviewCard("Draft Answers", appState.draftAnswers.length),
     renderOverviewCard("Missing Items", appState.missingInformation.length),
-    renderOverviewCard("Proposed Memory", pendingMemoryCount),
-    renderOverviewCard("Detected Requirements", totalRequirements),
   ].join("");
 }
 
@@ -311,11 +331,17 @@ function renderDraftAnswers() {
   target.innerHTML = appState.draftAnswers
     .map((answer) => {
       const id = answer.id;
+      const memoryStatus = getMemoryStatus(answer);
+      const canSaveMemory =
+        memoryStatus === "not_saved" || memoryStatus === "needs_review";
       return `
         <article class="answer-card">
           <div class="card-header">
             <h3>${escapeHtml(answer.field || answer.requirement_label || "Untitled field")}</h3>
-            ${renderStatusBadge(answer)}
+            <div class="badge-row">
+              ${renderStatusBadge(answer)}
+              ${renderMemoryStatusBadge(memoryStatus)}
+            </div>
           </div>
           <p class="question-text">${escapeHtml(
             answer.question || answer.requested_by_form || "No prompt text provided."
@@ -324,14 +350,32 @@ function renderDraftAnswers() {
             id
           )}">${escapeHtml(answer.answer || answer.draft_answer || "")}</textarea>
           <div class="source-row">
+            <span>Answer source: ${escapeHtml(getAnswerSourceLabel(answer.answerSource))}</span>
             <span>Memory used: ${escapeHtml(formatList(answer.memoryUsed || answer.memory_used))}</span>
             <span>Sources used: ${escapeHtml(formatList(answer.sourcesUsed || answer.sources_used || answer.source))}</span>
             <span>Confidence: ${escapeHtml(answer.confidence || "not specified")}</span>
           </div>
+          <div class="memory-detail-row">
+            <span>Memory label: ${escapeHtml(answer.memoryLabel || answer.field || "Untitled field")}</span>
+            <span>Category: ${escapeHtml(answer.memoryCategory || "general")}</span>
+            <span>Sensitivity: ${renderSensitivityBadge(answer.memorySensitivity || "medium")}</span>
+          </div>
+          ${
+            answer.memoryReason
+              ? `<p class="meta-text">Memory note: ${escapeHtml(answer.memoryReason)}</p>`
+              : ""
+          }
           <div class="card-actions">
-            <button type="button" class="primary-button" data-action="approve-answer" data-answer-id="${escapeHtml(
+            <button type="button" class="ghost-button" data-action="copy-answer" data-answer-id="${escapeHtml(
               id
-            )}">${answer.approved ? "Approved" : "Approve Answer"}</button>
+            )}">Copy Answer</button>
+            ${
+              canSaveMemory
+                ? `<button type="button" class="primary-button" data-action="save-answer-memory" data-answer-id="${escapeHtml(
+                    id
+                  )}">Save to Memory</button>`
+                : ""
+            }
           </div>
         </article>
       `;
@@ -474,6 +518,16 @@ function handleDelegatedClick(event) {
     return;
   }
 
+  if (action === "copy-answer" && answerId) {
+    handleCopyAnswer(answerId, button);
+    return;
+  }
+
+  if (action === "save-answer-memory" && answerId) {
+    handleSaveDraftAnswerToMemory(answerId);
+    return;
+  }
+
   if (action === "approve-memory" && memoryId) {
     handleApproveMemory(memoryId);
     return;
@@ -592,9 +646,8 @@ async function handleParseDocuments() {
       appState.parseStatus = "parsed";
       appState.parseError = null;
       setUploadStatus("Documents parsed successfully.", "success");
-      setStatus(
-        "Documents parsed successfully. Copy the Evidence JSON and ask Anna to generate Review JSON."
-      );
+      setStatus("Documents parsed successfully. Generating draft answers with Anna...");
+      await generateDraftAnswersFromEvidence();
       return;
     }
 
@@ -619,6 +672,8 @@ function handleClearUploads() {
   appState.evidenceJson = null;
   appState.parseStatus = "idle";
   appState.parseError = null;
+  appState.draftStatus = "idle";
+  appState.draftError = null;
   renderParsedEvidence();
   setUploadStatus("Parse button ready.");
   setStatus("Uploads cleared.");
@@ -657,6 +712,278 @@ function loadEvidenceJson(data) {
   renderParsedEvidence();
 }
 
+async function handleGenerateDraftAnswers() {
+  await generateDraftAnswersFromEvidence();
+}
+
+async function generateDraftAnswersFromEvidence() {
+  if (!appState.evidenceJson) {
+    setDraftError("Parse documents before generating draft answers.");
+    return;
+  }
+
+  const llmBridge = getLlmBridge();
+
+  if (!llmBridge.client) {
+    setDraftError("Anna AI is not available in this session yet.");
+    renderBridgeDiagnostics();
+    return;
+  }
+
+  try {
+    appState.status = "drafting";
+    appState.draftStatus = "drafting";
+    appState.draftError = null;
+    currentBridgeSource = llmBridge.source;
+    setUploadStatus("Loading saved memory before drafting...");
+    setStatus("Loading saved memory before drafting...");
+    renderBridgeDiagnostics();
+    await loadSavedMemoryForDrafting();
+    currentBridgeSource = llmBridge.source;
+    setUploadStatus("Generating draft answers with Anna...");
+    setStatus("Generating draft answers with Anna...");
+    renderBridgeDiagnostics();
+
+    const response = await llmBridge.client.llm.complete(
+      {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: createDraftGenerationPrompt(),
+            },
+          },
+        ],
+        maxTokens: 4096,
+        temperature: 0.2,
+      },
+      { timeoutMs: 180000 }
+    );
+
+    const responseText = getLlmResponseText(response);
+    const reviewData = extractFirstJsonObject(responseText);
+    loadReviewData(reviewData);
+    appState.status = "draft_ready";
+    appState.draftStatus = "draft_ready";
+    appState.draftError = null;
+    setUploadStatus("Draft answers generated. Please review before saving memory.", "success");
+    setStatus("Draft answers generated. Please review before saving memory.");
+  } catch (error) {
+    setDraftError(`Anna draft generation failed: ${error.message || error}`);
+  }
+}
+
+function createDraftGenerationPrompt() {
+  return [
+    "You are Form Memory Filler inside Anna.",
+    "Use the Evidence JSON and saved memory to produce Review JSON for the app UI.",
+    "The Form Document Parser only parsed evidence. You are responsible for reasoning and drafting.",
+    "Draft answers are generated per target form field. The target form field is the source of truth.",
+    "Do not return a separate proposedMemoryUpdates list. Memory status belongs inside each draft answer.",
+    "Each draft answer must say whether the answer came from memory, source documents, or both.",
+    "Each draft answer must include memoryStatus, memoryLabel, memoryCategory, memorySensitivity, and memoryReason.",
+    "If saved memory exists and matches the answer, set memoryStatus to saved.",
+    "If no saved memory exists for that field/value and the value is reusable, set memoryStatus to not_saved.",
+    "If saved memory exists but uploaded source documents suggest a newer or different value, set memoryStatus to needs_review and explain why in memoryReason.",
+    "If the answer is one-time, temporary, uncertain, sensitive without clear reuse, or should not be stored, set memoryStatus to not_reusable.",
+    "Do not invent missing facts. Put unknown or unsupported fields in missingInformation.",
+    "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
+    "Use this exact Review JSON schema:",
+    JSON.stringify(getReviewJsonSchemaExample(), null, 2),
+    "Evidence JSON:",
+    JSON.stringify(appState.evidenceJson, null, 2),
+    "Saved memory currently loaded in the UI:",
+    JSON.stringify(appState.savedMemory || [], null, 2),
+  ].join("\n\n");
+}
+
+function getReviewJsonSchemaExample() {
+  return {
+    formOverview: {
+      title: "",
+      purpose: "",
+    },
+    draftAnswers: [
+      {
+        id: "draft_1",
+        field: "",
+        question: "",
+        answer: "",
+        confidence: "high",
+        status: "drafted_from_sources",
+        answerSource: "source_document",
+        sourcesUsed: [],
+        memoryUsed: [],
+        memoryStatus: "not_saved",
+        memoryLabel: "",
+        memoryCategory: "general",
+        memorySensitivity: "medium",
+        memoryReason: "",
+      },
+    ],
+    missingInformation: [
+      {
+        id: "missing_1",
+        field: "",
+        reason: "",
+        question: "",
+        status: "needs_user_input",
+      },
+    ],
+    savedMemory: [],
+  };
+}
+
+async function loadSavedMemoryForDrafting() {
+  const result = await callTool("list_memory", {});
+
+  if (result.success) {
+    appState.savedMemory = normalizeArray(result.data.items).map(normalizeSavedMemory);
+    return true;
+  }
+
+  const message = result.error && result.error.message
+    ? result.error.message
+    : "Saved memory could not be loaded.";
+  setStatus(`Saved memory could not be loaded before drafting: ${message}`);
+  return false;
+}
+
+function getLlmBridge() {
+  if (
+    annaClient &&
+    annaClient.llm &&
+    typeof annaClient.llm.complete === "function"
+  ) {
+    return {
+      source: "AnnaAppRuntime.connect.llm",
+      client: annaClient,
+    };
+  }
+
+  const fallbackAnna = window.anna || null;
+
+  if (
+    fallbackAnna &&
+    fallbackAnna.llm &&
+    typeof fallbackAnna.llm.complete === "function"
+  ) {
+    return {
+      source: "window.anna.llm",
+      client: fallbackAnna,
+    };
+  }
+
+  const fallbackAnnaCaps = window.Anna || null;
+
+  if (
+    fallbackAnnaCaps &&
+    fallbackAnnaCaps.llm &&
+    typeof fallbackAnnaCaps.llm.complete === "function"
+  ) {
+    return {
+      source: "window.Anna.llm",
+      client: fallbackAnnaCaps,
+    };
+  }
+
+  return {
+    source: "none",
+    client: null,
+  };
+}
+
+function getLlmResponseText(response) {
+  if (typeof response === "string") {
+    return response;
+  }
+
+  if (response && response.content) {
+    if (typeof response.content === "string") {
+      return response.content;
+    }
+
+    if (typeof response.content.text === "string") {
+      return response.content.text;
+    }
+
+    if (Array.isArray(response.content)) {
+      return response.content
+        .map((part) => {
+          if (typeof part === "string") return part;
+          if (part && typeof part.text === "string") return part.text;
+          return "";
+        })
+        .join("");
+    }
+  }
+
+  if (response && typeof response.text === "string") {
+    return response.text;
+  }
+
+  throw new Error("Anna returned an empty draft response.");
+}
+
+function extractFirstJsonObject(text) {
+  const source = String(text || "").trim();
+
+  try {
+    return JSON.parse(source);
+  } catch (_error) {
+    // Continue with object extraction below.
+  }
+
+  const start = source.indexOf("{");
+
+  if (start < 0) {
+    throw new Error("Anna did not return a JSON object.");
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+
+      if (depth === 0) {
+        const candidate = source.slice(start, index + 1);
+        return JSON.parse(candidate);
+      }
+    }
+  }
+
+  throw new Error("Anna returned incomplete JSON.");
+}
+
 function loadReviewData(data) {
   const normalized = normalizeReviewData(data);
 
@@ -665,7 +992,10 @@ function loadReviewData(data) {
   appState.draftAnswers = normalized.draftAnswers;
   appState.missingInformation = normalized.missingInformation;
   appState.proposedMemoryUpdates = normalized.proposedMemoryUpdates;
-  appState.savedMemory = normalized.savedMemory;
+  appState.savedMemory =
+    normalized.savedMemory.length > 0 || normalized.hasSavedMemory
+      ? normalized.savedMemory
+      : appState.savedMemory;
 
   renderApp();
 }
@@ -689,6 +1019,7 @@ function normalizeReviewData(data) {
       normalizeProposedMemory
     ),
     savedMemory: normalizeArray(source.savedMemory).map(normalizeSavedMemory),
+    hasSavedMemory: Object.prototype.hasOwnProperty.call(source, "savedMemory"),
   };
 }
 
@@ -702,11 +1033,31 @@ function normalizeDraftAnswer(item, index) {
     answer: source.answer || source.draft_answer || "",
     confidence: source.confidence || "",
     source: source.source || "",
+    answerSource: source.answerSource || source.answer_source || source.source || "",
     memoryUsed: normalizeList(source.memoryUsed || source.memory_used),
     sourcesUsed: normalizeList(source.sourcesUsed || source.sources_used || source.source),
     status: source.status || "needs_review",
+    memoryStatus: normalizeMemoryStatus(source.memoryStatus || source.memory_status),
+    memoryLabel: source.memoryLabel || source.memory_label || source.field || source.requirement_label || "Untitled field",
+    memoryCategory: source.memoryCategory || source.memory_category || "general",
+    memorySensitivity: normalizeSensitivity(
+      source.memorySensitivity || source.memory_sensitivity || "medium"
+    ),
+    memoryReason: source.memoryReason || source.memory_reason || "",
     approved: source.approved === true,
   };
+}
+
+function normalizeMemoryStatus(value) {
+  const normalized = String(value || "not_saved").trim();
+  const allowed = ["not_saved", "saved", "needs_review", "not_reusable"];
+  return allowed.includes(normalized) ? normalized : "not_saved";
+}
+
+function normalizeSensitivity(value) {
+  const normalized = String(value || "medium").trim();
+  const allowed = ["low", "medium", "high"];
+  return allowed.includes(normalized) ? normalized : "medium";
 }
 
 function normalizeMissingInformation(item, index) {
@@ -782,6 +1133,100 @@ function handleApproveAnswer(answerId) {
   answer.status = "approved";
   setStatus("Answer approved for this form. Memory is not saved automatically.");
   renderApp();
+}
+
+async function handleCopyAnswer(answerId, button) {
+  const answer = appState.draftAnswers.find((item) => item.id === answerId);
+
+  if (!answer) {
+    setStatus("Answer not found.");
+    return;
+  }
+
+  const text = getCurrentDraftAnswerValue(answerId, answer.answer).trim();
+  answer.answer = text;
+
+  if (!text) {
+    setStatus("There is no draft answer to copy.");
+    return;
+  }
+
+  let copied = false;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch (error) {
+      copied = copyTextWithFallback(text);
+    }
+  } else {
+    copied = copyTextWithFallback(text);
+  }
+
+  if (copied) {
+    showTemporaryButtonFeedback(button, "Copied!");
+    setStatus("Answer copied.");
+    return;
+  }
+
+  showTemporaryButtonFeedback(button, "Copy failed");
+  setStatus("Copy failed. Please copy manually.");
+}
+
+async function handleSaveDraftAnswerToMemory(answerId) {
+  const answer = appState.draftAnswers.find((item) => item.id === answerId);
+
+  if (!answer) {
+    setStatus("Answer not found.");
+    return;
+  }
+
+  const memoryStatus = getMemoryStatus(answer);
+
+  if (memoryStatus !== "not_saved" && memoryStatus !== "needs_review") {
+    setStatus("This answer is not marked for memory saving.");
+    return;
+  }
+
+  const value = getCurrentDraftAnswerValue(answerId, answer.answer).trim();
+  answer.answer = value;
+
+  if (!value) {
+    setStatus("Memory value is empty. Please edit before saving.");
+    return;
+  }
+
+  setStatus("Saving approved answer to memory...");
+
+  const result = await callTool("save_approved_memory", {
+    items: [
+      {
+        label: answer.memoryLabel || answer.field,
+        value,
+        category: answer.memoryCategory || "general",
+        sensitivity: answer.memorySensitivity || "medium",
+        source_note: answer.memoryReason || "",
+      },
+    ],
+  });
+
+  if (result.success) {
+    answer.memoryStatus = "saved";
+    answer.memoryReason = "Saved to memory from this reviewed answer.";
+    setStatus("Saved to memory");
+    renderDraftAnswers();
+    await refreshSavedMemoryInBackground();
+    return;
+  }
+
+  setStatus(`Memory could not be saved: ${result.error.message}`);
+}
+
+function getCurrentDraftAnswerValue(answerId, fallbackValue) {
+  const inputs = Array.from(document.querySelectorAll(".draft-answer-input"));
+  const input = inputs.find((element) => element.dataset.answerId === answerId);
+  return String(input ? input.value : fallbackValue || "");
 }
 
 function handleMemoryValueChange(memoryId, newValue) {
@@ -872,6 +1317,15 @@ async function handleRefreshSavedMemory() {
 
   appState.status = "review_ready";
   renderApp();
+}
+
+async function refreshSavedMemoryInBackground() {
+  const result = await callTool("list_memory", {});
+
+  if (result.success) {
+    appState.savedMemory = normalizeArray(result.data.items).map(normalizeSavedMemory);
+    renderSavedMemory();
+  }
 }
 
 async function handleDeleteMemoryItem(memoryId) {
@@ -1021,6 +1475,15 @@ function setParseError(message) {
   renderParsedEvidence();
 }
 
+function setDraftError(message) {
+  appState.status = "draft_error";
+  appState.draftStatus = "draft_error";
+  appState.draftError = message;
+  setUploadStatus(message, "error");
+  setStatus(message);
+  renderBridgeDiagnostics();
+}
+
 async function handleCopyEvidenceJson() {
   if (!appState.evidenceJson) {
     setStatus("No Evidence JSON to copy.");
@@ -1051,8 +1514,28 @@ function copyTextWithFallback(text) {
   textarea.style.left = "-9999px";
   document.body.appendChild(textarea);
   textarea.select();
-  document.execCommand("copy");
-  document.body.removeChild(textarea);
+
+  try {
+    return document.execCommand("copy");
+  } catch (error) {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+function showTemporaryButtonFeedback(button, message) {
+  if (!button) return;
+
+  const originalText = button.dataset.originalText || button.textContent;
+  button.dataset.originalText = originalText;
+  button.textContent = message;
+  button.classList.add("button-feedback-active");
+
+  window.setTimeout(() => {
+    button.textContent = button.dataset.originalText || originalText;
+    button.classList.remove("button-feedback-active");
+  }, 1500);
 }
 
 function setStatus(message) {
@@ -1087,6 +1570,18 @@ function renderBridgeDiagnostics() {
       "annaClient.tools.invoke",
       info.hasAnnaClientInvoke ? "available" : "not available",
     ],
+    [
+      "annaClient.llm.complete",
+      info.hasAnnaClientLlmComplete ? "available" : "not available",
+    ],
+    ["annaClient.agent", info.hasAnnaClientAgent ? "available" : "not available"],
+    ["annaClient.chat", info.hasAnnaClientChat ? "available" : "not available"],
+    [
+      "window.anna.llm.complete",
+      info.hasWindowAnnaLlmComplete ? "available" : "not available",
+    ],
+    ["window.anna.agent", info.hasWindowAnnaAgent ? "available" : "not available"],
+    ["window.anna.chat", info.hasWindowAnnaChat ? "available" : "not available"],
     ["Current bridge source", info.currentBridgeSource || "none"],
   ];
 
@@ -1118,8 +1613,15 @@ function createNeutralDemoData() {
         question: "Enter the organization name for this example form.",
         answer: "Example Organization",
         confidence: "high",
-        source: "Neutral demo document",
-        status: "needs_review",
+        status: "drafted_from_sources",
+        answerSource: "source_document",
+        sourcesUsed: ["Neutral demo document"],
+        memoryUsed: [],
+        memoryStatus: "not_saved",
+        memoryLabel: "Example organization name",
+        memoryCategory: "general",
+        memorySensitivity: "low",
+        memoryReason: "Reusable for future fictional demo forms.",
       },
       {
         field: "Project Summary",
@@ -1127,8 +1629,15 @@ function createNeutralDemoData() {
         answer:
           "This fictional project demonstrates how drafted form answers can be reviewed before use.",
         confidence: "medium",
-        source: "Neutral demo notes",
-        status: "needs_review",
+        status: "drafted_from_sources",
+        answerSource: "source_document",
+        sourcesUsed: ["Neutral demo notes"],
+        memoryUsed: [],
+        memoryStatus: "not_reusable",
+        memoryLabel: "Project summary",
+        memoryCategory: "general",
+        memorySensitivity: "medium",
+        memoryReason: "This is specific to the neutral demo form.",
       },
     ],
     missingInformation: [
@@ -1137,14 +1646,7 @@ function createNeutralDemoData() {
         reason: "The neutral demo documents do not include a date.",
       },
     ],
-    proposedMemoryUpdates: [
-      {
-        label: "Example organization name",
-        value: "Example Organization",
-        sensitivity: "low",
-        reason: "Useful for future fictional demo forms.",
-      },
-    ],
+    proposedMemoryUpdates: [],
     savedMemory: [],
   };
 }
@@ -1181,6 +1683,13 @@ function renderStatusBadge(item) {
   return `<span class="status-badge ${escapeHtml(
     getStatusClass(item)
   )}">${escapeHtml(getDisplayStatusLabel(item))}</span>`;
+}
+
+function renderMemoryStatusBadge(status) {
+  const normalized = normalizeMemoryStatus(status);
+  return `<span class="status-badge memory-status-badge status-memory_${escapeHtml(
+    normalized
+  )}">${escapeHtml(getMemoryStatusLabel(normalized))}</span>`;
 }
 
 function renderSensitivityBadge(sensitivity) {
@@ -1232,6 +1741,33 @@ function getDisplayStatusKey(item) {
 
 function getMemoryApprovalState(item) {
   return item.approval_state || "";
+}
+
+function getMemoryStatus(item) {
+  return normalizeMemoryStatus(item.memoryStatus || item.memory_status);
+}
+
+function getMemoryStatusLabel(status) {
+  const labels = {
+    not_saved: "Not saved in memory",
+    saved: "Already in memory",
+    needs_review: "Needs review: source differs from memory",
+    not_reusable: "Not reusable",
+  };
+
+  return labels[normalizeMemoryStatus(status)] || labels.not_saved;
+}
+
+function getAnswerSourceLabel(value) {
+  const labels = {
+    memory: "Memory",
+    source_document: "Source document",
+    memory_and_source: "Memory and source documents",
+    memory_and_sources: "Memory and source documents",
+    user_input: "User input",
+  };
+  const key = String(value || "").trim();
+  return labels[key] || key || "Not specified";
 }
 
 document.addEventListener("DOMContentLoaded", () => {

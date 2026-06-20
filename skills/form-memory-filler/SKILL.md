@@ -43,9 +43,9 @@ Follow this workflow:
 10. Mark missing information clearly.
 11. Show draft answers for user review, in chat or Anna Deck.
 12. Ask the user to approve, edit, reject, or rewrite answers.
-13. Propose reusable memory updates separately.
-14. Ask which proposed memory items the user wants to save.
-15. Call `save_approved_memory` only after explicit user approval.
+13. Include memory status inside each draft answer card.
+14. Let the user save reusable answers to memory from the reviewed draft answer card.
+15. Call `save_approved_memory` only after explicit user approval for that specific answer.
 16. Summarize what was drafted, what still needs input, and what memory was saved.
 
 ## How To Read The Target Form
@@ -98,14 +98,77 @@ Each answer should include:
 * requirement label
 * what the form asked
 * draft answer
+* answer source
 * memory used
 * source documents used
 * status
+* memory status
+* memory label, category, sensitivity, and reason when relevant
 * missing information, if any
 
 For direct factual fields, short answers are acceptable. For open-ended prompts, draft polished answers in the style requested by the form.
 
 Draft answers are not final until the user approves them.
+
+When generating app review data, return only valid JSON with no markdown or code fences.
+
+Use this Review JSON shape:
+
+```json
+{
+  "formOverview": {
+    "title": "",
+    "purpose": ""
+  },
+  "draftAnswers": [
+    {
+      "id": "draft_1",
+      "field": "",
+      "question": "",
+      "answer": "",
+      "confidence": "high",
+      "status": "drafted_from_sources",
+      "answerSource": "source_document",
+      "sourcesUsed": [],
+      "memoryUsed": [],
+      "memoryStatus": "not_saved",
+      "memoryLabel": "",
+      "memoryCategory": "general",
+      "memorySensitivity": "medium",
+      "memoryReason": ""
+    }
+  ],
+  "missingInformation": [
+    {
+      "id": "missing_1",
+      "field": "",
+      "reason": "",
+      "question": "",
+      "status": "needs_user_input"
+    }
+  ],
+  "savedMemory": []
+}
+```
+
+Do not include `proposedMemoryUpdates` in app review data. Memory decisions belong inside each draft answer.
+
+Use these `memoryStatus` values:
+
+```text
+not_saved
+saved
+needs_review
+not_reusable
+```
+
+Use `not_saved` when the answer is reusable and does not already exist in approved memory.
+
+Use `saved` when the answer already exists in approved memory.
+
+Use `needs_review` when approved memory exists but source documents suggest a newer or different value. Explain the difference in `memoryReason`.
+
+Use `not_reusable` when an answer is one-time, temporary, uncertain, or should not be saved.
 
 ## Status Values
 
@@ -167,11 +230,11 @@ Show draft answers before treating anything as final. Invite the user to:
 
 Do not say a form is final, completed, or submitted unless the user approved it and the app actually has that capability.
 
-## Proposed Memory Update Behavior
+## Memory Save Behavior
 
-After drafting answers, separately propose reusable memory updates that may help future forms.
+The target form field is the source of truth. Memory status belongs inside each draft answer.
 
-Good memory candidates include:
+Good reusable draft answers may include:
 
 * education background
 * relevant skills summary
@@ -183,7 +246,7 @@ Good memory candidates include:
 * company profile
 * reusable previous application answer
 
-Avoid proposing memory for:
+Avoid saving memory for:
 
 * one-time details
 * temporary information
@@ -192,7 +255,9 @@ Avoid proposing memory for:
 * information useful only for one specific form
 * sensitive data without explicit approval
 
-Show the proposed memory items separately from the draft answers. Ask the user which items to save, edit, skip, or delete.
+The primary UX should not be a separate proposed memory list. Let the user review the draft answer, edit it, and click Save to Memory from that draft answer card.
+
+Save the current edited answer value, not an older generated value.
 
 ## When To Call Memory Tools
 
@@ -207,7 +272,7 @@ delete_memory_item
 
 Call `get_memory` before drafting answers when approved memory may help.
 
-Call `save_approved_memory` only after the user explicitly approves specific memory items. Save reusable memory cards, not raw source documents.
+Call `save_approved_memory` only after the user explicitly clicks Save to Memory for a specific draft answer. Save reusable memory cards, not raw source documents.
 
 Call `list_memory` when the user asks what Anna remembers for Form Memory Filler.
 
@@ -228,18 +293,17 @@ Use Anna Deck as the visual workspace for:
 * memory used
 * source documents used
 * missing information
-* proposed memory updates
-* answer approval
-* memory approval
+* memory status per answer
+* answer copy action
+* save-to-memory action per answer
 * saved memory list
 * delete memory action
 
 Deck sections should eventually include:
 
-* Form Overview: form title, detected sections, draft count, missing count.
-* Draft Answers: requirement label, form prompt, draft answer, status, memory used, sources used, edit action, approve action.
+* Form Overview: form title, purpose, draft count, missing count.
+* Draft Answers: requirement label, form prompt, draft answer, status, answer source, memory status, memory used, sources used, edit action, copy action, save-to-memory action.
 * Missing Information: questions Anna cannot answer from memory or source documents.
-* Proposed Memory Updates: label, value, category, sensitivity, source note, approve, edit, skip.
 * Saved Memory: approved memory cards from Anna APS with review and delete actions.
 
 The Deck must not replace Anna AI. The Deck must not silently save memory. The Deck must not store raw documents by default. The Deck must not become a standalone form builder.
@@ -297,8 +361,8 @@ load approved memory
 read source documents
 draft answers
 review with user
-propose memory
-save approved memory
+show memory status inside draft answers
+save approved draft answers to memory
 reuse memory in the next form
 ```
 

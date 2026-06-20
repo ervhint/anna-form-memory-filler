@@ -390,6 +390,48 @@ textarea:focus-visible {
   margin-bottom: 14px;
 }
 
+.answer-card .card-actions {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.memory-detail-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.memory-detail-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.memory-detail-row .sensitivity-badge {
+  min-height: 22px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  vertical-align: middle;
+}
+
+.button-feedback-active {
+  border-color: #bbf7d0;
+  color: var(--success);
+  background: var(--success-soft);
+}
+
 .status-badge,
 .sensitivity-badge {
   display: inline-flex;
@@ -437,6 +479,24 @@ textarea:focus-visible {
   color: var(--success);
   background: var(--success-soft);
   border-color: #bbf7d0;
+}
+
+.status-memory_not_saved {
+  color: #6b4e16;
+  background: #fff8e6;
+  border-color: #f5d98b;
+}
+
+.status-memory_needs_review {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.status-memory_not_reusable {
+  color: #475569;
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 .status-skipped {
@@ -530,5 +590,13 @@ textarea:focus-visible {
   .card-actions button,
   .section-actions button {
     flex: 1 1 100%;
+  }
+
+  .answer-card .card-actions {
+    align-items: center;
+  }
+
+  .answer-card .card-actions button {
+    flex: 0 1 auto;
   }
 }

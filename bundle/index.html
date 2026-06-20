@@ -53,7 +53,11 @@
         <section class="panel" id="parsed-evidence-section" aria-labelledby="parsed-evidence-heading">
           <div class="section-heading">
             <h2 id="parsed-evidence-heading">Parsed Evidence</h2>
-            <p>Structured parser output to copy into Anna for Review JSON generation.</p>
+            <p>Structured parser output used by Anna to draft review-ready answers.</p>
+          </div>
+
+          <div class="section-actions">
+            <button id="generate-draft-answers-button" class="primary-button" type="button">Generate Draft Answers</button>
           </div>
 
           <div id="parsed-evidence-summary" class="card-list">
@@ -63,7 +67,7 @@
 
         <section class="panel" id="session-tools-section" aria-labelledby="session-tools-heading">
           <div class="section-heading">
-            <h2 id="session-tools-heading">Review Data</h2>
+            <h2 id="session-tools-heading">Developer fallback: paste Review JSON</h2>
             <p>Load review data from Anna or use neutral test data during development.</p>
           </div>
 
@@ -113,21 +117,6 @@
 
           <div id="missing-information-list" class="card-list">
             <!-- app.js renders missing information cards here -->
-          </div>
-        </section>
-
-        <section class="panel" id="proposed-memory-section" aria-labelledby="proposed-memory-heading">
-          <div class="section-heading">
-            <h2 id="proposed-memory-heading">Proposed Memory Updates</h2>
-            <p>Approve only the information you want Anna to remember for future forms.</p>
-          </div>
-
-          <div class="notice">
-            Memory is not saved automatically. Only approved items will be sent to Form Memory Store.
-          </div>
-
-          <div id="proposed-memory-list" class="card-list">
-            <!-- app.js renders proposed memory cards here -->
           </div>
         </section>
 
