@@ -586,7 +586,7 @@ function handleDelegatedClick(event) {
   }
 
   if (action === "save-answer-memory" && answerId) {
-    handleSaveDraftAnswerToMemory(answerId);
+    handleSaveDraftAnswerToMemory(answerId, button);
     return;
   }
 
@@ -601,7 +601,7 @@ function handleDelegatedClick(event) {
   }
 
   if (action === "delete-memory" && memoryId) {
-    handleDeleteMemoryItem(memoryId);
+    handleDeleteMemoryItem(memoryId, button);
     return;
   }
 
@@ -1603,7 +1603,7 @@ async function handleCopyAnswer(answerId, button) {
   setStatus("Copy failed. Please copy manually.");
 }
 
-async function handleSaveDraftAnswerToMemory(answerId) {
+async function handleSaveDraftAnswerToMemory(answerId, button) {
   const answer = appState.draftAnswers.find((item) => item.id === answerId);
 
   if (!answer) {
@@ -1627,6 +1627,7 @@ async function handleSaveDraftAnswerToMemory(answerId) {
   }
 
   const isUpdate = memoryStatus === "saved" || memoryStatus === "needs_review" || Boolean(answer.memoryId);
+  showTemporaryButtonFeedback(button, isUpdate ? "Updating..." : "Saving...");
   setStatus(isUpdate ? "Updating approved memory..." : "Saving approved answer to memory...");
 
   const memoryInput = {
@@ -1657,11 +1658,13 @@ async function handleSaveDraftAnswerToMemory(answerId) {
       ? "Updated memory from this reviewed answer."
       : "Saved to memory from this reviewed answer.";
     setStatus(isUpdate ? "Memory updated" : "Saved to memory");
-    renderDraftAnswers();
+    showTemporaryButtonFeedback(button, isUpdate ? "Updated!" : "Saved!");
     await refreshSavedMemoryInBackground();
+    window.setTimeout(renderDraftAnswers, 900);
     return;
   }
 
+  showTemporaryButtonFeedback(button, isUpdate ? "Update failed" : "Save failed");
   setStatus(`Memory could not be saved: ${result.error.message}`);
 }
 
@@ -1770,11 +1773,12 @@ async function refreshSavedMemoryInBackground() {
   }
 }
 
-async function handleDeleteMemoryItem(memoryId) {
+async function handleDeleteMemoryItem(memoryId, button) {
   const confirmed = window.confirm("Delete this saved memory item?");
 
   if (!confirmed) return;
 
+  showTemporaryButtonFeedback(button, "Deleting...");
   setStatus("Deleting memory...");
 
   const result = await callTool("delete_memory_item", { id: memoryId });
@@ -1783,12 +1787,14 @@ async function handleDeleteMemoryItem(memoryId) {
     appState.savedMemory = appState.savedMemory.filter(
       (item) => item.id !== memoryId
     );
+    showTemporaryButtonFeedback(button, "Deleted!");
     setStatus("Saved memory deleted.");
-  } else {
-    setStatus(`Memory could not be deleted: ${result.error.message}`);
+    window.setTimeout(renderSavedMemory, 600);
+    return;
   }
 
-  renderApp();
+  showTemporaryButtonFeedback(button, "Delete failed");
+  setStatus(`Memory could not be deleted: ${result.error.message}`);
 }
 
 async function callTool(toolName, args = {}, options = {}) {
