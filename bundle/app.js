@@ -87,7 +87,7 @@ function attachEventListeners() {
   const generateButton = document.getElementById("generate-draft-answers-button");
 
   if (refreshButton) {
-    refreshButton.addEventListener("click", handleRefreshSavedMemory);
+    refreshButton.addEventListener("click", () => handleRefreshSavedMemory(refreshButton));
   }
 
   if (demoButton) {
@@ -211,7 +211,6 @@ function renderApp() {
   renderCompactEvidence();
   renderFormOverview();
   renderDraftAnswers();
-  renderMissingInformation();
   renderSavedMemory();
   renderStatusMessage();
 }
@@ -1747,8 +1746,9 @@ function handleSkipMemory(memoryId) {
   renderApp();
 }
 
-async function handleRefreshSavedMemory() {
+async function handleRefreshSavedMemory(button) {
   appState.status = "loading_memory";
+  showTemporaryButtonFeedback(button, "Refreshing...");
   setStatus("Loading saved memory...");
 
   const result = await callTool("list_memory", {});
@@ -1756,12 +1756,15 @@ async function handleRefreshSavedMemory() {
   if (result.success) {
     appState.savedMemory = normalizeArray(result.data.items).map(normalizeSavedMemory);
     setStatus("Saved memory loaded.");
+    showTemporaryButtonFeedback(button, "Refreshed!");
   } else {
     setStatus(`Saved memory could not be loaded: ${result.error.message}`);
+    showTemporaryButtonFeedback(button, "Refresh failed");
   }
 
   appState.status = "review_ready";
-  renderApp();
+  renderSavedMemory();
+  renderStatusMessage();
 }
 
 async function refreshSavedMemoryInBackground() {
@@ -1774,9 +1777,11 @@ async function refreshSavedMemoryInBackground() {
 }
 
 async function handleDeleteMemoryItem(memoryId, button) {
-  const confirmed = window.confirm("Delete this saved memory item?");
-
-  if (!confirmed) return;
+  if (!memoryId) {
+    setStatus("Memory could not be deleted: missing memory id.");
+    showTemporaryButtonFeedback(button, "Delete failed");
+    return;
+  }
 
   showTemporaryButtonFeedback(button, "Deleting...");
   setStatus("Deleting memory...");
@@ -1787,14 +1792,17 @@ async function handleDeleteMemoryItem(memoryId, button) {
     appState.savedMemory = appState.savedMemory.filter(
       (item) => item.id !== memoryId
     );
-    showTemporaryButtonFeedback(button, "Deleted!");
     setStatus("Saved memory deleted.");
-    window.setTimeout(renderSavedMemory, 600);
+    showTemporaryButtonFeedback(button, "Deleted!");
+    renderSavedMemory();
     return;
   }
 
+  const message = result.error && result.error.message
+    ? result.error.message
+    : "Delete request failed.";
   showTemporaryButtonFeedback(button, "Delete failed");
-  setStatus(`Memory could not be deleted: ${result.error.message}`);
+  setStatus(`Memory could not be deleted: ${message}`);
 }
 
 async function callTool(toolName, args = {}, options = {}) {
