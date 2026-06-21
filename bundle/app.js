@@ -85,6 +85,8 @@ function attachEventListeners() {
   const clearUploadsButton = document.getElementById("clear-uploads-button");
   const compactEvidenceButton = document.getElementById("generate-compact-evidence-button");
   const generateButton = document.getElementById("generate-draft-answers-button");
+  const targetFileInput = document.getElementById("target-form-file");
+  const sourceFileInput = document.getElementById("source-document-files");
 
   if (refreshButton) {
     refreshButton.addEventListener("click", () => handleRefreshSavedMemory(refreshButton));
@@ -113,6 +115,16 @@ function attachEventListeners() {
   if (generateButton) {
     generateButton.addEventListener("click", handleGenerateDraftAnswers);
   }
+
+  if (targetFileInput) {
+    targetFileInput.addEventListener("change", updateSelectedFileSummaries);
+  }
+
+  if (sourceFileInput) {
+    sourceFileInput.addEventListener("change", updateSelectedFileSummaries);
+  }
+
+  updateSelectedFileSummaries();
 
   if (app) {
     app.addEventListener("click", handleDelegatedClick);
@@ -362,20 +374,22 @@ function renderFormOverview() {
 
   const overview = appState.formOverview;
 
-  target.innerHTML = [
-    renderOverviewCard("Form Title", overview.title || "Untitled form"),
-    renderOverviewCard("Purpose", overview.purpose || "Not specified"),
-    renderOverviewCard("Draft Answers", appState.draftAnswers.length),
-    renderOverviewCard("Missing Items", appState.missingInformation.length),
-  ].join("");
+  target.innerHTML = `
+    <dl class="overview-definition-list">
+      ${renderOverviewItem("Form Title", overview.title || "Untitled form")}
+      ${renderOverviewItem("Purpose", overview.purpose || "Not specified")}
+      ${renderOverviewItem("Draft Answers", appState.draftAnswers.length)}
+      ${renderOverviewItem("Missing Items", appState.missingInformation.length)}
+    </dl>
+  `;
 }
 
-function renderOverviewCard(label, value) {
+function renderOverviewItem(label, value) {
   return `
-    <article class="overview-card">
-      <span class="label">${escapeHtml(label)}</span>
-      <span class="value">${escapeHtml(value)}</span>
-    </article>
+    <div class="overview-definition-item">
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${escapeHtml(value)}</dd>
+    </div>
   `;
 }
 
@@ -527,17 +541,17 @@ function renderSavedMemory() {
   target.innerHTML = appState.savedMemory
     .map(
       (item) => `
-        <article class="memory-card">
-          <div class="card-header">
+        <article class="saved-memory-row">
+          <div class="saved-memory-main">
             <h3>${escapeHtml(item.label || "Untitled memory")}</h3>
-            ${renderSensitivityBadge(item.sensitivity)}
+            <p>${escapeHtml(item.preview || item.value || "")}</p>
           </div>
-          <p class="question-text">${escapeHtml(item.preview || item.value || "")}</p>
-          <p class="meta-text">Category: ${escapeHtml(item.category || "general")}</p>
-          <p class="meta-text">Last confirmed: ${escapeHtml(
-            item.last_confirmed_at || item.lastConfirmedAt || "unknown"
-          )}</p>
-          <div class="card-actions">
+          <div class="saved-memory-meta">
+            <span>${escapeHtml(item.category || "general")}</span>
+            ${renderSensitivityBadge(item.sensitivity)}
+            <span>${escapeHtml(formatMemoryDate(item.last_confirmed_at || item.lastConfirmedAt))}</span>
+          </div>
+          <div class="saved-memory-actions">
             <button type="button" class="danger-button" data-action="delete-memory" data-memory-id="${escapeHtml(
               item.id
             )}">Delete</button>
@@ -558,6 +572,22 @@ function renderStatusMessage() {
 
 function renderEmptyState(message) {
   return `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function formatMemoryDate(value) {
+  if (!value) return "unknown";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function handleDelegatedClick(event) {
@@ -743,7 +773,37 @@ function handleClearUploads() {
   renderParsedEvidence();
   renderCompactEvidence();
   setUploadStatus("Parse button ready.");
+  updateSelectedFileSummaries();
   setStatus("Uploads cleared.");
+}
+
+function updateSelectedFileSummaries() {
+  updateFileSummary("target-form-file", "target-form-file-name", "No file selected");
+  updateFileSummary("source-document-files", "source-document-files-name", "No files selected");
+}
+
+function updateFileSummary(inputId, summaryId, emptyText) {
+  const input = document.getElementById(inputId);
+  const summary = document.getElementById(summaryId);
+
+  if (!summary) return;
+
+  const files = input && input.files ? Array.from(input.files) : [];
+
+  if (files.length === 0) {
+    summary.textContent = emptyText;
+    summary.title = emptyText;
+    return;
+  }
+
+  const fileNames = files.map((file) => file.name);
+  const displayText =
+    fileNames.length === 1
+      ? fileNames[0]
+      : `${fileNames.length} files selected: ${fileNames.join(", ")}`;
+
+  summary.textContent = displayText;
+  summary.title = displayText;
 }
 
 async function createParserDocumentInput(file) {

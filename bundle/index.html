@@ -21,23 +21,32 @@
         <section class="panel" id="upload-documents-section" aria-labelledby="upload-documents-heading">
           <div class="section-heading">
             <h2 id="upload-documents-heading">Upload documents</h2>
-            <p>Parse DOCX files into Evidence JSON before asking Anna to draft review data.</p>
+            <p>Upload DOCX files, then ask Anna to draft answers for review.</p>
           </div>
 
           <div class="upload-grid">
             <div class="upload-field">
-              <label class="field-label" for="target-form-file">Target form DOCX</label>
-              <input id="target-form-file" type="file" accept=".docx">
+              <span class="field-label">Target form DOCX</span>
+              <div class="file-picker">
+                <input id="target-form-file" class="file-input" type="file" accept=".docx">
+                <label class="file-trigger" for="target-form-file">Choose DOCX</label>
+                <span id="target-form-file-name" class="file-summary">No file selected</span>
+              </div>
             </div>
 
             <div class="upload-field">
-              <label class="field-label" for="source-document-files">Source documents DOCX (optional)</label>
-              <input id="source-document-files" type="file" accept=".docx" multiple>
+              <span class="field-label">Source documents DOCX (optional)</span>
+              <div class="file-picker">
+                <input id="source-document-files" class="file-input" type="file" accept=".docx" multiple>
+                <label class="file-trigger" for="source-document-files">Choose DOCX files</label>
+                <span id="source-document-files-name" class="file-summary">No files selected</span>
+              </div>
             </div>
           </div>
 
           <div class="section-actions">
             <button id="parse-documents-button" class="primary-button" type="button">Parse documents</button>
+            <button id="generate-draft-answers-button" type="button">Generate Draft Answers</button>
             <button id="clear-uploads-button" type="button">Clear uploads</button>
           </div>
 
@@ -45,51 +54,6 @@
             Waiting for upload.
           </div>
 
-          <div id="bridge-diagnostics" class="bridge-diagnostics" aria-live="polite">
-            Checking Anna bridge...
-          </div>
-        </section>
-
-        <section class="panel" id="parsed-evidence-section" aria-labelledby="parsed-evidence-heading">
-          <div class="section-heading">
-            <h2 id="parsed-evidence-heading">Parsed Evidence</h2>
-            <p>Structured parser output used by Anna to draft review-ready answers.</p>
-          </div>
-
-          <div class="section-actions">
-            <button id="generate-compact-evidence-button" type="button">Generate Compact Evidence</button>
-            <button id="generate-draft-answers-button" class="primary-button" type="button">Generate Draft Answers</button>
-          </div>
-
-          <div id="parsed-evidence-summary" class="card-list">
-            <!-- app.js renders parsed evidence summary here -->
-          </div>
-
-          <div id="compact-evidence-summary" class="card-list compact-evidence-summary">
-            <!-- app.js renders compact Anna evidence here -->
-          </div>
-        </section>
-
-        <section class="panel" id="session-tools-section" aria-labelledby="session-tools-heading">
-          <div class="section-heading">
-            <h2 id="session-tools-heading">Developer fallback: paste Review JSON</h2>
-            <p>Load review data from Anna or use neutral test data during development.</p>
-          </div>
-
-          <div class="section-actions">
-            <button id="load-neutral-demo-button" type="button">Load neutral demo</button>
-          </div>
-
-          <label class="field-label" for="review-json-input">Developer review JSON</label>
-          <textarea
-            id="review-json-input"
-            class="json-import-input"
-            placeholder="Paste review JSON here for local testing."
-          ></textarea>
-
-          <div class="section-actions">
-            <button id="load-review-json-button" class="secondary-button" type="button">Load review JSON</button>
-          </div>
         </section>
 
         <section class="panel" id="form-overview-section" aria-labelledby="form-overview-heading">
@@ -98,8 +62,8 @@
             <p>Summary of the current form-filling session.</p>
           </div>
 
-          <div id="form-overview" class="overview-grid">
-            <!-- app.js renders overview cards here -->
+          <div id="form-overview" class="overview-list">
+            <!-- app.js renders overview summary here -->
           </div>
         </section>
 
@@ -124,8 +88,8 @@
             <button id="refresh-memory-button" type="button">Refresh Saved Memory</button>
           </div>
 
-          <div id="saved-memory-list" class="card-list">
-            <!-- app.js renders saved memory cards here -->
+          <div id="saved-memory-list" class="saved-memory-list">
+            <!-- app.js renders saved memory rows here -->
           </div>
         </section>
       </main>

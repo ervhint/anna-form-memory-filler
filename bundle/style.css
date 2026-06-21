@@ -76,17 +76,34 @@ body {
   color: var(--muted);
 }
 
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+.overview-list {
+  display: block;
 }
 
-.overview-card {
-  padding: 16px;
-  background: #fbfdff;
-  border: 1px solid var(--soft-border);
-  border-radius: 14px;
+.overview-definition-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 22px;
+  margin: 0;
+  padding: 0;
+}
+
+.overview-definition-item {
+  display: contents;
+}
+
+.overview-definition-item dt {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.overview-definition-item dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .upload-grid {
@@ -99,20 +116,59 @@ body {
   min-width: 0;
 }
 
-input[type="file"] {
-  width: 100%;
-  padding: 10px;
-  color: var(--text);
+.file-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px;
   background: #fbfdff;
   border: 1px solid var(--border);
   border-radius: 12px;
-  font: inherit;
 }
 
-input[type="file"]:focus-visible {
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.file-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.file-trigger:hover {
+  background: #4338ca;
+}
+
+.file-input:focus-visible + .file-trigger {
   outline: 3px solid rgba(79, 70, 229, 0.28);
   outline-offset: 2px;
-  border-color: var(--primary);
+}
+
+.file-summary {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-status {
@@ -141,45 +197,65 @@ input[type="file"]:focus-visible {
   border-color: #fecaca;
 }
 
-.bridge-diagnostics {
-  display: grid;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  color: var(--muted);
-  background: #fbfdff;
-  border: 1px solid var(--soft-border);
-  border-radius: 12px;
-  font-size: 13px;
-}
-
-.bridge-diagnostics-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.bridge-diagnostics-row strong {
-  color: var(--text);
-  text-align: right;
-}
-
-.overview-card .label {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.overview-card .value {
-  display: block;
-  margin-top: 6px;
-  font-size: 24px;
-  font-weight: 700;
-}
 
 .card-list {
   display: grid;
   gap: 14px;
+}
+
+.saved-memory-list {
+  display: grid;
+  gap: 8px;
+}
+
+.saved-memory-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid var(--soft-border);
+  border-radius: 12px;
+}
+
+.saved-memory-main {
+  min-width: 0;
+}
+
+.saved-memory-main h3,
+.saved-memory-main p {
+  margin: 0;
+}
+
+.saved-memory-main h3 {
+  font-size: 15px;
+}
+
+.saved-memory-main p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.saved-memory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.saved-memory-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.saved-memory-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
 }
 
 .answer-card,
@@ -589,13 +665,27 @@ textarea:focus-visible {
     padding: 20px;
   }
 
-  .overview-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .saved-memory-row {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .saved-memory-actions {
+    justify-content: flex-start;
   }
 
   .upload-grid,
   .evidence-stats {
     grid-template-columns: 1fr;
+  }
+
+  .file-picker {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .file-summary {
+    white-space: normal;
   }
 }
 
@@ -613,8 +703,22 @@ textarea:focus-visible {
     padding: 16px;
   }
 
-  .overview-grid {
+  .overview-definition-list {
     grid-template-columns: 1fr;
+    gap: 4px 0;
+  }
+
+  .overview-definition-item {
+    display: block;
+    padding-bottom: 10px;
+  }
+
+  .overview-definition-item:last-child {
+    padding-bottom: 0;
+  }
+
+  .overview-definition-item dd {
+    margin-top: 2px;
   }
 
   .card-header {
