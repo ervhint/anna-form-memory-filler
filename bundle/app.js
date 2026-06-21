@@ -410,22 +410,17 @@ function renderDraftAnswers() {
           <textarea class="draft-answer-input" data-answer-id="${escapeHtml(
             id
           )}">${escapeHtml(answer.answer || answer.draft_answer || "")}</textarea>
-          <div class="source-row">
-            <span>Answer source: ${escapeHtml(getAnswerSourceLabel(answer.answerSource))}</span>
-            <span>Memory used: ${escapeHtml(formatList(answer.memoryUsed || answer.memory_used))}</span>
-            <span>Sources used: ${escapeHtml(formatList(answer.sourcesUsed || answer.sources_used || answer.source))}</span>
-            <span>Confidence: ${escapeHtml(answer.confidence || "not specified")}</span>
+          <div class="answer-meta-grid">
+            ${renderAnswerMetaItem("Answer Source", getAnswerSourceLabel(answer.answerSource))}
+            ${renderAnswerMetaItem("Memory Label", answer.memoryLabel || answer.field || "Untitled field")}
+            ${renderAnswerMetaItem("Sources Used", formatList(answer.sourcesUsed || answer.sources_used || answer.source))}
+            ${renderAnswerMetaItem("Category", answer.memoryCategory || "general")}
+            <div class="answer-meta-item">
+              <span class="answer-meta-label">Sensitivity</span>
+              <span class="answer-meta-value">${renderSensitivityBadge(answer.memorySensitivity || "medium")}</span>
+            </div>
+            ${renderAnswerMetaItem("Memory Note", answer.memoryReason || "Not specified")}
           </div>
-          <div class="memory-detail-row">
-            <span>Memory label: ${escapeHtml(answer.memoryLabel || answer.field || "Untitled field")}</span>
-            <span>Category: ${escapeHtml(answer.memoryCategory || "general")}</span>
-            <span>Sensitivity: ${renderSensitivityBadge(answer.memorySensitivity || "medium")}</span>
-          </div>
-          ${
-            answer.memoryReason
-              ? `<p class="meta-text">Memory note: ${escapeHtml(answer.memoryReason)}</p>`
-              : ""
-          }
           <div class="card-actions">
             <button type="button" class="ghost-button" data-action="copy-answer" data-answer-id="${escapeHtml(
               id
@@ -2223,6 +2218,15 @@ function escapeHtml(value) {
 function formatList(items) {
   const list = normalizeList(items);
   return list.length > 0 ? list.join(", ") : "none";
+}
+
+function renderAnswerMetaItem(label, value) {
+  return `
+    <div class="answer-meta-item">
+      <span class="answer-meta-label">${escapeHtml(label)}</span>
+      <span class="answer-meta-value">${escapeHtml(value)}</span>
+    </div>
+  `;
 }
 
 function getStatusClass(item) {

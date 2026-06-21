@@ -139,10 +139,6 @@ function createMemoryCard(item, currentTime) {
     value: item.value,
     category: item.category,
     sensitivity: item.sensitivity,
-    approved_by_user: true,
-    source_note: item.source_note,
-    created_at: currentTime,
-    updated_at: currentTime,
     last_confirmed_at: currentTime,
   };
 }
@@ -154,10 +150,6 @@ function updateExistingMemoryItem(existingItem, newItem, currentTime) {
     value: newItem.value,
     category: newItem.category,
     sensitivity: newItem.sensitivity,
-    approved_by_user: true,
-    source_note: newItem.source_note,
-    created_at: existingItem.created_at,
-    updated_at: currentTime,
     last_confirmed_at: currentTime,
   };
 }

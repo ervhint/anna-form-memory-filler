@@ -21,7 +21,7 @@ const pendingHostRequests = new Map();
 const MANIFEST = {
   name: "form-memory-store",
   display_name: "Form Memory Store",
-  version: "0.1.7",
+  version: "0.1.8",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
   host_capabilities: ["aps.kv"],
@@ -44,7 +44,7 @@ const MANIFEST = {
           name: "items",
           type: "array",
           description:
-            "Approved memory cards to save. Each item should include label, value, category, sensitivity, and source_note.",
+            "Approved memory cards to save. Each item should include label, value, category, and sensitivity. Optional id updates an existing memory card.",
           required: true,
         },
       ],

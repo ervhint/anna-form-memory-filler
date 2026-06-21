@@ -228,6 +228,46 @@ input[type="file"]:focus-visible {
   margin-top: 10px;
 }
 
+.answer-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #fbfdff;
+  border: 1px solid var(--soft-border);
+  border-radius: 12px;
+}
+
+.answer-meta-item {
+  min-width: 0;
+}
+
+.answer-meta-label,
+.answer-meta-value {
+  display: block;
+}
+
+.answer-meta-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.answer-meta-value {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.answer-meta-value .sensitivity-badge {
+  min-height: 22px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
 .evidence-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -580,6 +620,10 @@ textarea:focus-visible {
   .card-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .answer-meta-grid {
+    grid-template-columns: 1fr;
   }
 
   .card-actions,
