@@ -1220,7 +1220,7 @@ function getReviewJsonSchemaExample() {
 }
 
 async function loadSavedMemoryForDrafting() {
-  const result = await callTool("list_memory", {});
+  const result = await callTool("get_memory", {});
 
   if (result.success) {
     appState.savedMemory = normalizeArray(result.data.items).map(normalizeSavedMemory);
