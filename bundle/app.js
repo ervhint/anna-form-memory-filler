@@ -394,8 +394,8 @@ function renderDraftAnswers() {
     .map((answer) => {
       const id = answer.id;
       const memoryStatus = getMemoryStatus(answer);
-      const canSaveMemory =
-        memoryStatus === "not_saved" || memoryStatus === "needs_review";
+      const canSaveMemory = memoryStatus !== "not_reusable";
+      const memoryActionLabel = memoryStatus === "saved" || memoryStatus === "needs_review" ? "Update Memory" : "Save to Memory";
       return `
         <article class="answer-card">
           <div class="card-header">
@@ -435,7 +435,7 @@ function renderDraftAnswers() {
               canSaveMemory
                 ? `<button type="button" class="primary-button" data-action="save-answer-memory" data-answer-id="${escapeHtml(
                     id
-                  )}">Save to Memory</button>`
+                  )}">${escapeHtml(memoryActionLabel)}</button>`
                 : ""
             }
           </div>
@@ -1088,18 +1088,16 @@ function createMemoryFactsForAi() {
 function expandAnswerSelectionToReviewData(data) {
   const source = data && typeof data === "object" ? data : {};
   const answerEvidence = createAnswerEvidenceForAi();
-  const draftAnswers = normalizeArray(source.draftAnswers).map((item, index) =>
+  const answerSelections = normalizeArray(source.draftAnswers).map((item, index) =>
     expandAnswerSelectionItem(item, index, answerEvidence)
   );
   const missingInformation = normalizeArray(source.missingInformation).map(
-    (item, index) => ({
-      id: item.id || `missing_${index + 1}`,
-      field: item.label || item.field || item.fieldName || "Untitled field",
-      reason: item.reason || "Anna could not find enough information in source documents or saved memory.",
-      question: item.question || item.instruction || item.label || item.field || "",
-      status: "needs_user_input",
-    })
+    normalizeAnswerSelectionMissingInformation
   );
+  const missingDraftAnswers = missingInformation.map((item, index) =>
+    expandMissingInformationToDraftAnswer(item, answerSelections.length + index)
+  );
+  const draftAnswers = answerSelections.concat(missingDraftAnswers);
   const targetForm = appState.evidenceJson && appState.evidenceJson.targetForm;
 
   return {
@@ -1138,12 +1136,49 @@ function expandAnswerSelectionItem(item, index, answerEvidence) {
     sourcesUsed: exactSource && exactSource.sourceDocName ? [exactSource.sourceDocName] : [],
     memoryUsed: exactMemory && exactMemory.label ? [exactMemory.label] : [],
     memoryStatus,
-    memoryLabel: label,
+    memoryId: exactMemory && exactMemory.memoryId ? exactMemory.memoryId : "",
+    memoryLabel: exactMemory && exactMemory.label ? exactMemory.label : normalizeLabelForMemory(label),
     memoryCategory: reusableFact && reusableFact.category ? reusableFact.category : "general",
     memorySensitivity: normalizeSensitivity(reusableFact && reusableFact.sensitivity ? reusableFact.sensitivity : "medium"),
     memoryReason: exactMemory
       ? "Matched saved memory."
       : "Generated from source evidence and can be saved after review.",
+    approved: false,
+  };
+}
+
+function normalizeAnswerSelectionMissingInformation(item, index) {
+  const source = item && typeof item === "object" ? item : {};
+  const label = source.label || source.field || source.fieldName || "Untitled field";
+
+  return {
+    id: source.id || `missing_${index + 1}`,
+    field: label,
+    reason: source.reason || "Anna could not find enough information in source documents or saved memory.",
+    question: source.question || source.instruction || label,
+    status: "needs_user_input",
+  };
+}
+
+function expandMissingInformationToDraftAnswer(item, index) {
+  const label = item.field || item.label || `Missing answer ${index + 1}`;
+
+  return {
+    id: `draft_${index + 1}`,
+    field: label,
+    question: item.question || label,
+    answer: "",
+    confidence: "needs input",
+    status: "needs_user_input",
+    answerSource: "user_input",
+    sourcesUsed: [],
+    memoryUsed: [],
+    memoryStatus: "not_saved",
+    memoryId: "",
+    memoryLabel: normalizeLabelForMemory(label),
+    memoryCategory: "general",
+    memorySensitivity: "medium",
+    memoryReason: item.reason || "User can provide this value and save it for future forms.",
     approved: false,
   };
 }
@@ -1180,7 +1215,16 @@ function normalizeMatchText(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
+    .replace(/_/g, " ")
     .replace(/\s+/g, " ");
+}
+
+function normalizeLabelForMemory(label) {
+  return String(label || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "general";
 }
 function getReviewJsonSchemaExample() {
   return {
@@ -1422,7 +1466,8 @@ function normalizeDraftAnswer(item, index) {
     sourcesUsed: normalizeList(source.sourcesUsed || source.sources_used || source.source),
     status: source.status || "needs_review",
     memoryStatus: normalizeMemoryStatus(source.memoryStatus || source.memory_status),
-    memoryLabel: source.memoryLabel || source.memory_label || source.field || source.requirement_label || "Untitled field",
+    memoryId: source.memoryId || source.memory_id || "",
+    memoryLabel: source.memoryLabel || source.memory_label || normalizeLabelForMemory(source.field || source.requirement_label || "Untitled field"),
     memoryCategory: source.memoryCategory || source.memory_category || "general",
     memorySensitivity: normalizeSensitivity(
       source.memorySensitivity || source.memory_sensitivity || "medium"
@@ -1568,8 +1613,8 @@ async function handleSaveDraftAnswerToMemory(answerId) {
 
   const memoryStatus = getMemoryStatus(answer);
 
-  if (memoryStatus !== "not_saved" && memoryStatus !== "needs_review") {
-    setStatus("This answer is not marked for memory saving.");
+  if (memoryStatus === "not_reusable") {
+    setStatus("This answer is not marked as reusable memory.");
     return;
   }
 
@@ -1581,24 +1626,37 @@ async function handleSaveDraftAnswerToMemory(answerId) {
     return;
   }
 
-  setStatus("Saving approved answer to memory...");
+  const isUpdate = memoryStatus === "saved" || memoryStatus === "needs_review" || Boolean(answer.memoryId);
+  setStatus(isUpdate ? "Updating approved memory..." : "Saving approved answer to memory...");
+
+  const memoryInput = {
+    label: answer.memoryLabel || normalizeLabelForMemory(answer.field),
+    value,
+    category: answer.memoryCategory || "general",
+    sensitivity: answer.memorySensitivity || "medium",
+    source_note: isUpdate
+      ? "Updated by user from Form Memory Filler review."
+      : answer.memoryReason || "",
+  };
+
+  if (answer.memoryId) {
+    memoryInput.id = answer.memoryId;
+  }
 
   const result = await callTool("save_approved_memory", {
-    items: [
-      {
-        label: answer.memoryLabel || answer.field,
-        value,
-        category: answer.memoryCategory || "general",
-        sensitivity: answer.memorySensitivity || "medium",
-        source_note: answer.memoryReason || "",
-      },
-    ],
+    items: [memoryInput],
   });
 
   if (result.success) {
+    const savedItem = normalizeArray(result.data && result.data.items)[0];
+
     answer.memoryStatus = "saved";
-    answer.memoryReason = "Saved to memory from this reviewed answer.";
-    setStatus("Saved to memory");
+    answer.memoryId = savedItem && savedItem.id ? savedItem.id : answer.memoryId;
+    answer.memoryLabel = savedItem && savedItem.label ? savedItem.label : memoryInput.label;
+    answer.memoryReason = isUpdate
+      ? "Updated memory from this reviewed answer."
+      : "Saved to memory from this reviewed answer.";
+    setStatus(isUpdate ? "Memory updated" : "Saved to memory");
     renderDraftAnswers();
     await refreshSavedMemoryInBackground();
     return;

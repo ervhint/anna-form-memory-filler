@@ -163,6 +163,16 @@ function updateExistingMemoryItem(existingItem, newItem, currentTime) {
 }
 
 function findSimilarMemoryItem(existingItems, newItem) {
+  if (hasText(newItem.id)) {
+    const existingItemById = existingItems.find(
+      (existingItem) => existingItem.id === newItem.id
+    );
+
+    if (existingItemById) {
+      return existingItemById;
+    }
+  }
+
   const normalizedNewLabel = normalizeLabel(newItem.label);
 
   return (

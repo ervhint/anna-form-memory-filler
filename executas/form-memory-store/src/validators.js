@@ -72,13 +72,19 @@ function normalizeMemoryInputItem(item) {
     ? String(item.source_note).trim()
     : DEFAULT_SOURCE_NOTE;
 
-  return {
+  const normalizedItem = {
     label: normalizedLabel,
     value: normalizedValue,
     category,
     sensitivity,
     source_note: sourceNote,
   };
+
+  if (hasText(item.id)) {
+    normalizedItem.id = String(item.id).trim();
+  }
+
+  return normalizedItem;
 }
 
 function isAllowedSensitivity(sensitivity) {
