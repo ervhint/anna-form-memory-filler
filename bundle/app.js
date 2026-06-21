@@ -46,8 +46,11 @@ const appState = {
   proposedMemoryUpdates: [],
   savedMemory: [],
   evidenceJson: null,
+  compactEvidenceJson: null,
   parseStatus: "idle",
   parseError: null,
+  compactEvidenceStatus: "idle",
+  compactEvidenceError: null,
   draftStatus: "idle",
   draftError: null,
 };
@@ -80,6 +83,7 @@ function attachEventListeners() {
   const importButton = document.getElementById("load-review-json-button");
   const parseButton = document.getElementById("parse-documents-button");
   const clearUploadsButton = document.getElementById("clear-uploads-button");
+  const compactEvidenceButton = document.getElementById("generate-compact-evidence-button");
   const generateButton = document.getElementById("generate-draft-answers-button");
 
   if (refreshButton) {
@@ -100,6 +104,10 @@ function attachEventListeners() {
 
   if (clearUploadsButton) {
     clearUploadsButton.addEventListener("click", handleClearUploads);
+  }
+
+  if (compactEvidenceButton) {
+    compactEvidenceButton.addEventListener("click", handleGenerateCompactEvidence);
   }
 
   if (generateButton) {
@@ -128,6 +136,9 @@ function exposeIntegrationApi() {
     },
     loadEvidenceJson(data) {
       loadEvidenceJson(data);
+    },
+    loadCompactEvidenceJson(data) {
+      loadCompactEvidenceJson(data);
     },
     getState() {
       return appState;
@@ -197,6 +208,7 @@ function exposeIntegrationApi() {
 
 function renderApp() {
   renderParsedEvidence();
+  renderCompactEvidence();
   renderFormOverview();
   renderDraftAnswers();
   renderMissingInformation();
@@ -230,8 +242,7 @@ function renderParsedEvidence() {
   const evidence = appState.evidenceJson;
   const targetForm = evidence.targetForm || {};
   const sourceDocuments = normalizeArray(evidence.sourceDocuments);
-  const targetChunks = normalizeArray(targetForm.chunks);
-  const detectedFields = normalizeArray(targetForm.detectedFields);
+  const targetText = String(targetForm.cleanText || "");
 
   target.innerHTML = `
     <article class="evidence-card">
@@ -240,9 +251,9 @@ function renderParsedEvidence() {
         <span class="status-badge status-approved">Parsed</span>
       </div>
       <div class="evidence-stats">
-        ${renderEvidenceStat("Detected fields", detectedFields.length)}
-        ${renderEvidenceStat("Target chunks", targetChunks.length)}
+        ${renderEvidenceStat("Target text chars", targetText.length)}
         ${renderEvidenceStat("Source documents", sourceDocuments.length)}
+        ${renderEvidenceStat("Parser mode", "Text only")}
       </div>
       ${
         sourceDocuments.length > 0
@@ -251,7 +262,7 @@ function renderParsedEvidence() {
               .join("")}</div>`
           : ""
       }
-      <label class="field-label" for="evidence-json-output">Evidence JSON</label>
+      <label class="field-label" for="evidence-json-output">Extracted Text Evidence JSON</label>
       <textarea id="evidence-json-output" class="json-import-input evidence-json-output" readonly>${escapeHtml(
         JSON.stringify(evidence, null, 2)
       )}</textarea>
@@ -272,18 +283,69 @@ function renderEvidenceStat(label, value) {
 }
 
 function renderEvidenceSource(sourceDocument) {
-  const extractedFields = normalizeArray(sourceDocument.extractedFields);
-  const chunks = normalizeArray(sourceDocument.chunks);
+  const sourceText = String(sourceDocument.cleanText || "");
 
   return `
     <div class="evidence-source">
       <strong>${escapeHtml(sourceDocument.fileName || "Source document")}</strong>
-      <span>${escapeHtml(extractedFields.length)} extracted fields</span>
-      <span>${escapeHtml(chunks.length)} chunks</span>
+      <span>${escapeHtml(sourceText.length)} text chars</span>
+      <span>${escapeHtml(sourceDocument.mimeType || "document")}</span>
     </div>
   `;
 }
 
+function renderCompactEvidence() {
+  const target = document.getElementById("compact-evidence-summary");
+
+  if (!target) return;
+
+  if (!appState.compactEvidenceJson) {
+    if (appState.compactEvidenceError) {
+      target.innerHTML = `
+        <article class="evidence-card parse-error-card">
+          <div class="card-header">
+            <h3>Compact evidence error</h3>
+            <span class="status-badge status-needs_input">Needs attention</span>
+          </div>
+          <p class="meta-text">${escapeHtml(appState.compactEvidenceError)}</p>
+        </article>
+      `;
+      return;
+    }
+
+    target.innerHTML = renderEmptyState("No compact evidence yet.");
+    return;
+  }
+
+  const compactEvidence = appState.compactEvidenceJson;
+  const targetFields = normalizeArray(compactEvidence.targetFields);
+  const sourceFacts = normalizeArray(compactEvidence.sourceFacts);
+  const sourceDocNames = Array.from(
+    new Set(sourceFacts.map((fact) => fact.sourceDocName).filter(Boolean))
+  );
+
+  target.innerHTML = `
+    <article class="evidence-card compact-evidence-card">
+      <div class="card-header">
+        <h3>Compact Evidence</h3>
+        <span class="status-badge status-approved">Ready for drafting</span>
+      </div>
+      <div class="evidence-stats">
+        ${renderEvidenceStat("Target fields", targetFields.length)}
+        ${renderEvidenceStat("Source facts", sourceFacts.length)}
+        ${renderEvidenceStat("Source docs", sourceDocNames.length)}
+      </div>
+      <p class="meta-text">Anna AI created this compact evidence from extracted document text. Draft Answers use this smaller JSON plus saved memory.</p>
+      <label class="field-label" for="compact-evidence-json-output">Compact Evidence JSON</label>
+      <textarea id="compact-evidence-json-output" class="json-import-input evidence-json-output" readonly>${escapeHtml(
+        JSON.stringify(compactEvidence, null, 2)
+      )}</textarea>
+      <div class="section-actions">
+        <button id="copy-compact-evidence-json-button" type="button" data-action="copy-compact-evidence-json">Copy Compact Evidence JSON</button>
+      </div>
+    </article>
+  `;
+}
 function renderFormOverview() {
   const target = document.getElementById("form-overview");
 
@@ -545,6 +607,11 @@ function handleDelegatedClick(event) {
 
   if (action === "copy-evidence-json") {
     handleCopyEvidenceJson();
+    return;
+  }
+
+  if (action === "copy-compact-evidence-json") {
+    handleCopyCompactEvidenceJson();
   }
 }
 
@@ -646,8 +713,14 @@ async function handleParseDocuments() {
       appState.parseStatus = "parsed";
       appState.parseError = null;
       setUploadStatus("Documents parsed successfully.", "success");
-      setStatus("Documents parsed successfully. Generating draft answers with Anna...");
-      await generateDraftAnswersFromEvidence();
+      setStatus("Documents parsed successfully. Asking Anna to understand documents...");
+      const compactReady = await generateCompactEvidenceFromExtractedText();
+
+      if (compactReady) {
+        setStatus("Compact evidence generated. Generating draft answers with Anna...");
+        await generateDraftAnswersFromEvidence();
+      }
+
       return;
     }
 
@@ -670,11 +743,15 @@ function handleClearUploads() {
   if (sourceInput) sourceInput.value = "";
 
   appState.evidenceJson = null;
+  appState.compactEvidenceJson = null;
   appState.parseStatus = "idle";
   appState.parseError = null;
+  appState.compactEvidenceStatus = "idle";
+  appState.compactEvidenceError = null;
   appState.draftStatus = "idle";
   appState.draftError = null;
   renderParsedEvidence();
+  renderCompactEvidence();
   setUploadStatus("Parse button ready.");
   setStatus("Uploads cleared.");
 }
@@ -707,19 +784,94 @@ function readFileAsBase64(file) {
 
 function loadEvidenceJson(data) {
   appState.evidenceJson = data || null;
+  appState.compactEvidenceJson = null;
   appState.parseStatus = data ? "parsed" : "idle";
   appState.parseError = null;
+  appState.compactEvidenceStatus = data ? "pending" : "idle";
+  appState.compactEvidenceError = null;
   renderParsedEvidence();
+  renderCompactEvidence();
+}
+
+function loadCompactEvidenceJson(data) {
+  appState.compactEvidenceJson = data ? normalizeCompactEvidence(data) : null;
+  appState.compactEvidenceStatus = data ? "ready" : "idle";
+  appState.compactEvidenceError = null;
+  renderCompactEvidence();
+}
+
+async function handleGenerateCompactEvidence() {
+  await generateCompactEvidenceFromExtractedText();
 }
 
 async function handleGenerateDraftAnswers() {
   await generateDraftAnswersFromEvidence();
 }
 
+async function generateCompactEvidenceFromExtractedText() {
+  if (!appState.evidenceJson) {
+    setCompactEvidenceError("Parse documents before generating compact evidence.");
+    return false;
+  }
+
+  const llmBridge = getLlmBridge();
+
+  if (!llmBridge.client) {
+    setCompactEvidenceError("Anna AI is not available in this session yet.");
+    renderBridgeDiagnostics();
+    return false;
+  }
+
+  try {
+    appState.compactEvidenceStatus = "drafting";
+    appState.compactEvidenceError = null;
+    currentBridgeSource = llmBridge.source;
+    setUploadStatus("Asking Anna to understand extracted text...");
+    setStatus("Asking Anna to understand extracted document text...");
+    renderBridgeDiagnostics();
+    renderCompactEvidence();
+
+    const response = await llmBridge.client.llm.complete(
+      {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: createCompactEvidencePrompt(),
+            },
+          },
+        ],
+        maxTokens: 8000,
+        temperature: 0.1,
+      },
+      { timeoutMs: 180000 }
+    );
+
+    const responseText = getLlmResponseText(response);
+    const compactEvidence = extractFirstJsonObject(responseText);
+    loadCompactEvidenceJson(compactEvidence);
+    setUploadStatus("Compact evidence generated.", "success");
+    setStatus("Compact evidence generated. Draft answers can now be generated.");
+    return true;
+  } catch (error) {
+    setCompactEvidenceError(`Anna compact evidence generation failed: ${error.message || error}`);
+    return false;
+  }
+}
+
 async function generateDraftAnswersFromEvidence() {
   if (!appState.evidenceJson) {
     setDraftError("Parse documents before generating draft answers.");
     return;
+  }
+
+  if (!appState.compactEvidenceJson) {
+    const compactReady = await generateCompactEvidenceFromExtractedText();
+
+    if (!compactReady) {
+      return;
+    }
   }
 
   const llmBridge = getLlmBridge();
@@ -774,12 +926,99 @@ async function generateDraftAnswersFromEvidence() {
   }
 }
 
+function createCompactEvidencePrompt() {
+  return [
+    "You are Form Memory Filler inside Anna.",
+    "Read the extracted document text and return compact evidence for a later form-filling draft step.",
+    "The target form text tells you what fields/questions need answers.",
+    "The source document text contains facts that may answer those fields or become reusable memory.",
+    "Flatten source facts across all source documents. Always include sourceDocName for each fact.",
+    "Do not draft final answers yet. Do not save memory. Do not invent facts.",
+    "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
+    "Use this exact Compact Evidence JSON schema:",
+    JSON.stringify(getCompactEvidenceSchemaExample(), null, 2),
+    "Extracted document text:",
+    JSON.stringify(createExtractedTextInputForAi(appState.evidenceJson), null, 2),
+  ].join("\n\n");
+}
+
+function createExtractedTextInputForAi(evidence) {
+  const safeEvidence = evidence || {};
+  const targetForm = safeEvidence.targetForm || {};
+
+  return {
+    targetForm: {
+      fileName: targetForm.fileName || "Target form",
+      text: String(targetForm.cleanText || ""),
+    },
+    sourceDocuments: normalizeArray(safeEvidence.sourceDocuments).map((sourceDocument) => ({
+      fileName: sourceDocument.fileName || "Source document",
+      text: String(sourceDocument.cleanText || ""),
+    })),
+  };
+}
+
+function getCompactEvidenceSchemaExample() {
+  return {
+    targetFields: [
+      {
+        id: "target_1",
+        fieldName: "",
+        question: "",
+        required: true,
+      },
+    ],
+    sourceFacts: [
+      {
+        id: "fact_1",
+        fieldName: "",
+        value: "",
+        category: "general",
+        sensitivity: "medium",
+        sourceDocName: "",
+      },
+    ],
+  };
+}
+
+function normalizeCompactEvidence(data) {
+  const targetFields = normalizeArray(data && (data.targetFields || data.target_fields));
+  const sourceFacts = normalizeArray(data && (data.sourceFacts || data.source_facts));
+
+  return {
+    targetFields: targetFields.map(normalizeCompactTargetField),
+    sourceFacts: sourceFacts.map(normalizeCompactSourceFact),
+  };
+}
+
+function normalizeCompactTargetField(item, index) {
+  const fieldName = item.fieldName || item.field_name || item.field || item.label || "";
+
+  return {
+    id: item.id || `target_${index + 1}`,
+    fieldName,
+    question: item.question || item.prompt || fieldName,
+    required: item.required !== false,
+  };
+}
+
+function normalizeCompactSourceFact(item, index) {
+  return {
+    id: item.id || `fact_${index + 1}`,
+    fieldName: item.fieldName || item.field_name || item.field || item.label || "",
+    value: item.value == null ? "" : String(item.value),
+    category: item.category || "general",
+    sensitivity: item.sensitivity || "medium",
+    sourceDocName: item.sourceDocName || item.source_doc_name || item.source || "",
+  };
+}
+
 function createDraftGenerationPrompt() {
   return [
     "You are Form Memory Filler inside Anna.",
-    "Use the Evidence JSON and saved memory to produce Review JSON for the app UI.",
-    "The Form Document Parser only parsed evidence. You are responsible for reasoning and drafting.",
-    "Draft answers are generated per target form field. The target form field is the source of truth.",
+    "Use Compact Evidence JSON and saved memory to produce Review JSON for the app UI.",
+    "The Form Document Parser only extracted text. Anna already condensed that text into compact target fields and source facts.",
+    "Draft answers are generated per compact target field. The target field is the source of truth.",
     "Do not return a separate proposedMemoryUpdates list. Memory status belongs inside each draft answer.",
     "Each draft answer must say whether the answer came from memory, source documents, or both.",
     "Each draft answer must include memoryStatus, memoryLabel, memoryCategory, memorySensitivity, and memoryReason.",
@@ -788,16 +1027,16 @@ function createDraftGenerationPrompt() {
     "If saved memory exists but uploaded source documents suggest a newer or different value, set memoryStatus to needs_review and explain why in memoryReason.",
     "If the answer is one-time, temporary, uncertain, sensitive without clear reuse, or should not be stored, set memoryStatus to not_reusable.",
     "Do not invent missing facts. Put unknown or unsupported fields in missingInformation.",
+    "Create one draft answer for each targetFields item when it is answerable. Put unanswered target fields in missingInformation.",
     "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
     "Use this exact Review JSON schema:",
     JSON.stringify(getReviewJsonSchemaExample(), null, 2),
-    "Evidence JSON:",
-    JSON.stringify(appState.evidenceJson, null, 2),
+    "Compact Evidence JSON:",
+    JSON.stringify(appState.compactEvidenceJson, null, 2),
     "Saved memory currently loaded in the UI:",
     JSON.stringify(appState.savedMemory || [], null, 2),
   ].join("\n\n");
 }
-
 function getReviewJsonSchemaExample() {
   return {
     formOverview: {
@@ -1484,6 +1723,15 @@ function setDraftError(message) {
   renderBridgeDiagnostics();
 }
 
+function setCompactEvidenceError(message) {
+  appState.compactEvidenceStatus = "error";
+  appState.compactEvidenceError = message;
+  setUploadStatus(message, "error");
+  setStatus(message);
+  renderCompactEvidence();
+  renderBridgeDiagnostics();
+}
+
 async function handleCopyEvidenceJson() {
   if (!appState.evidenceJson) {
     setStatus("No Evidence JSON to copy.");
@@ -1503,6 +1751,28 @@ async function handleCopyEvidenceJson() {
   } catch (error) {
     copyTextWithFallback(text);
     setStatus("Evidence JSON copied.");
+  }
+}
+
+async function handleCopyCompactEvidenceJson() {
+  if (!appState.compactEvidenceJson) {
+    setStatus("No Compact Evidence JSON to copy.");
+    return;
+  }
+
+  const text = JSON.stringify(appState.compactEvidenceJson, null, 2);
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      copyTextWithFallback(text);
+    }
+
+    setStatus("Compact Evidence JSON copied.");
+  } catch (error) {
+    copyTextWithFallback(text);
+    setStatus("Compact Evidence JSON copied.");
   }
 }
 

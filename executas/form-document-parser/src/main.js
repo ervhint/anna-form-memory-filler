@@ -9,7 +9,7 @@ const PROTOCOL_VERSION = "2.0";
 const MANIFEST = {
   name: "form-document-parser",
   display_name: "Form Document Parser",
-  version: "0.1.2",
+  version: "0.1.3",
   description:
     "Parses target forms and source documents into clean structured evidence JSON for Form Memory Filler.",
   tools: [

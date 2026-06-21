@@ -1,6 +1,6 @@
 {
   "name": "anna-form-document-parser-ervhint",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Tool Executa for parsing target forms and source documents into structured evidence JSON for Form Memory Filler.",
   "type": "commonjs",
   "main": "src/main.js",

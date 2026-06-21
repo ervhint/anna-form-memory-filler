@@ -1,8 +1,6 @@
 "use strict";
 
 const { cleanText } = require("./textCleaner");
-const { detectFormFields, extractKeyValueFields } = require("./fieldDetector");
-const { createChunks } = require("./chunker");
 const {
   validateParseDocumentsInput,
   getDocumentType,
@@ -34,9 +32,10 @@ async function parseTargetForm(document) {
     fileName: base.fileName,
     mimeType: base.mimeType,
     cleanText: base.cleanText,
-    detectedFields: detectFormFields(base.cleanText),
+    textLength: base.cleanText.length,
+    detectedFields: [],
     sections: [],
-    chunks: createChunks(base.cleanText, base.fileName),
+    chunks: [],
   };
 }
 
@@ -47,9 +46,10 @@ async function parseSourceDocument(document) {
     fileName: base.fileName,
     mimeType: base.mimeType,
     cleanText: base.cleanText,
-    extractedFields: extractKeyValueFields(base.cleanText, base.fileName),
+    textLength: base.cleanText.length,
+    extractedFields: [],
     sections: [],
-    chunks: createChunks(base.cleanText, base.fileName),
+    chunks: [],
   };
 }
 
