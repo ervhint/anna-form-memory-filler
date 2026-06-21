@@ -673,15 +673,11 @@ async function handleParseDocuments() {
     return;
   }
 
-  if (sourceFiles.length === 0) {
-    setParseError("No source documents selected.");
-    return;
-  }
 
   try {
     appState.parseStatus = "parsing";
     appState.parseError = null;
-    setStatus("Parsing uploaded documents...");
+    setStatus("Parsing target form and optional source documents...");
     setUploadStatus("Converting files...");
     renderParsedEvidence();
 
@@ -931,8 +927,9 @@ function createCompactEvidencePrompt() {
     "You are Form Memory Filler inside Anna.",
     "Read the extracted document text and return compact evidence for a later form-filling draft step.",
     "The target form text tells you what fields/questions need answers.",
-    "The source document text contains facts that may answer those fields or become reusable memory.",
-    "Flatten source facts across all source documents. Always include sourceDocName for each fact.",
+    "Source document text is optional. If no source documents are provided, sourceFacts may be empty.",
+    "When source document text exists, extract facts that may answer target fields or become reusable memory.",
+    "Flatten source facts across all source documents. Always include sourceDocName for each source fact.",
     "Do not draft final answers yet. Do not save memory. Do not invent facts.",
     "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
     "Use this exact Compact Evidence JSON schema:",
@@ -1087,16 +1084,15 @@ function createMemoryFactsForAi() {
 function expandAnswerSelectionToReviewData(data) {
   const source = data && typeof data === "object" ? data : {};
   const answerEvidence = createAnswerEvidenceForAi();
-  const answerSelections = normalizeArray(source.draftAnswers).map((item, index) =>
-    expandAnswerSelectionItem(item, index, answerEvidence)
-  );
+  const rawAnswers = normalizeArray(source.draftAnswers);
   const missingInformation = normalizeArray(source.missingInformation).map(
     normalizeAnswerSelectionMissingInformation
   );
-  const missingDraftAnswers = missingInformation.map((item, index) =>
-    expandMissingInformationToDraftAnswer(item, answerSelections.length + index)
+  const draftAnswers = createTargetOrderedDraftAnswers(
+    answerEvidence,
+    rawAnswers,
+    missingInformation
   );
-  const draftAnswers = answerSelections.concat(missingDraftAnswers);
   const targetForm = appState.evidenceJson && appState.evidenceJson.targetForm;
 
   return {
@@ -1111,10 +1107,82 @@ function expandAnswerSelectionToReviewData(data) {
   };
 }
 
-function expandAnswerSelectionItem(item, index, answerEvidence) {
+function createTargetOrderedDraftAnswers(answerEvidence, rawAnswers, missingInformation) {
+  const targetFields = normalizeArray(answerEvidence.targetFields);
+  const usedAnswerIndexes = new Set();
+  const usedMissingIndexes = new Set();
+  const draftAnswers = [];
+
+  targetFields.forEach((targetField) => {
+    const label = targetField.label || targetField.fieldName || targetField.field || "Untitled field";
+    const answerIndex = findMatchingAnswerSelectionIndex(rawAnswers, label, usedAnswerIndexes);
+
+    if (answerIndex >= 0) {
+      usedAnswerIndexes.add(answerIndex);
+      draftAnswers.push(
+        expandAnswerSelectionItem(rawAnswers[answerIndex], draftAnswers.length, answerEvidence, targetField)
+      );
+      return;
+    }
+
+    const missingIndex = findMatchingMissingInformationIndex(missingInformation, label, usedMissingIndexes);
+
+    if (missingIndex >= 0) {
+      usedMissingIndexes.add(missingIndex);
+      draftAnswers.push(
+        expandMissingInformationToDraftAnswer(missingInformation[missingIndex], draftAnswers.length, targetField)
+      );
+      return;
+    }
+
+    draftAnswers.push(
+      expandMissingInformationToDraftAnswer(
+        {
+          field: label,
+          question: targetField.instruction || targetField.question || label,
+          reason: "Anna did not return an answer for this target field.",
+        },
+        draftAnswers.length,
+        targetField
+      )
+    );
+  });
+
+  rawAnswers.forEach((item, index) => {
+    if (!usedAnswerIndexes.has(index)) {
+      draftAnswers.push(expandAnswerSelectionItem(item, draftAnswers.length, answerEvidence));
+    }
+  });
+
+  missingInformation.forEach((item, index) => {
+    if (!usedMissingIndexes.has(index)) {
+      draftAnswers.push(expandMissingInformationToDraftAnswer(item, draftAnswers.length));
+    }
+  });
+
+  return draftAnswers;
+}
+
+function findMatchingAnswerSelectionIndex(rawAnswers, label, usedIndexes) {
+  return normalizeArray(rawAnswers).findIndex((item, index) => {
+    if (usedIndexes.has(index)) return false;
+    const source = item && typeof item === "object" ? item : {};
+    return sameMatchText(source.label || source.field || source.fieldName, label);
+  });
+}
+
+function findMatchingMissingInformationIndex(missingInformation, label, usedIndexes) {
+  return normalizeArray(missingInformation).findIndex((item, index) => {
+    if (usedIndexes.has(index)) return false;
+    return sameMatchText(item.field || item.label, label);
+  });
+}
+
+function expandAnswerSelectionItem(item, index, answerEvidence, targetField = null) {
   const source = item && typeof item === "object" ? item : {};
   const evidenceId = source.evidenceId || source.evidence_id || source.id || "";
-  const label = source.label || source.field || source.fieldName || `Draft answer ${index + 1}`;
+  const targetLabel = targetField && (targetField.label || targetField.fieldName || targetField.field);
+  const label = targetLabel || source.label || source.field || source.fieldName || `Draft answer ${index + 1}`;
   const answer = source.answer == null ? "" : String(source.answer);
   const sourceFact = findEvidenceById(answerEvidence.sourceFacts, evidenceId);
   const memoryFact = findEvidenceById(answerEvidence.memoryFacts, evidenceId);
@@ -1127,7 +1195,9 @@ function expandAnswerSelectionItem(item, index, answerEvidence) {
   return {
     id: `draft_${index + 1}`,
     field: label,
-    question: label,
+    question: targetField && (targetField.instruction || targetField.question)
+      ? targetField.instruction || targetField.question
+      : label,
     answer,
     confidence: "medium",
     status: "needs_user_review",
@@ -1159,13 +1229,16 @@ function normalizeAnswerSelectionMissingInformation(item, index) {
   };
 }
 
-function expandMissingInformationToDraftAnswer(item, index) {
-  const label = item.field || item.label || `Missing answer ${index + 1}`;
+function expandMissingInformationToDraftAnswer(item, index, targetField = null) {
+  const targetLabel = targetField && (targetField.label || targetField.fieldName || targetField.field);
+  const label = targetLabel || item.field || item.label || `Missing answer ${index + 1}`;
 
   return {
     id: `draft_${index + 1}`,
     field: label,
-    question: item.question || label,
+    question: targetField && (targetField.instruction || targetField.question)
+      ? targetField.instruction || targetField.question
+      : item.question || label,
     answer: "",
     confidence: "needs input",
     status: "needs_user_input",
