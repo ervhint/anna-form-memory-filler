@@ -914,7 +914,8 @@ async function generateDraftAnswersFromEvidence() {
     );
 
     const responseText = getLlmResponseText(response);
-    const reviewData = extractFirstJsonObject(responseText);
+    const answerSelection = extractFirstJsonObject(responseText);
+    const reviewData = expandAnswerSelectionToReviewData(answerSelection);
     loadReviewData(reviewData);
     appState.status = "draft_ready";
     appState.draftStatus = "draft_ready";
@@ -1016,26 +1017,170 @@ function normalizeCompactSourceFact(item, index) {
 function createDraftGenerationPrompt() {
   return [
     "You are Form Memory Filler inside Anna.",
-    "Use Compact Evidence JSON and saved memory to produce Review JSON for the app UI.",
-    "The Form Document Parser only extracted text. Anna already condensed that text into compact target fields and source facts.",
-    "Draft answers are generated per compact target field. The target field is the source of truth.",
-    "Do not return a separate proposedMemoryUpdates list. Memory status belongs inside each draft answer.",
-    "Each draft answer must say whether the answer came from memory, source documents, or both.",
-    "Each draft answer must include memoryStatus, memoryLabel, memoryCategory, memorySensitivity, and memoryReason.",
-    "If saved memory exists and matches the answer, set memoryStatus to saved.",
-    "If no saved memory exists for that field/value and the value is reusable, set memoryStatus to not_saved.",
-    "If saved memory exists but uploaded source documents suggest a newer or different value, set memoryStatus to needs_review and explain why in memoryReason.",
-    "If the answer is one-time, temporary, uncertain, sensitive without clear reuse, or should not be stored, set memoryStatus to not_reusable.",
-    "Do not invent missing facts. Put unknown or unsupported fields in missingInformation.",
-    "Create one draft answer for each targetFields item when it is answerable. Put unanswered target fields in missingInformation.",
-    "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
-    "Use this exact Review JSON schema:",
-    JSON.stringify(getReviewJsonSchemaExample(), null, 2),
-    "Compact Evidence JSON:",
-    JSON.stringify(appState.compactEvidenceJson, null, 2),
-    "Saved memory currently loaded in the UI:",
-    JSON.stringify(appState.savedMemory || [], null, 2),
+    "Use Answer Evidence JSON to choose concise draft answers for target fields.",
+    "Return only the answer choices. The app will add UI metadata, memory status, source labels, and default fields.",
+    "Use evidenceId from sourceFacts or memoryFacts whenever an answer comes directly from that evidence.",
+    "Use sourceFacts IDs that start with fact_ for source document answers.",
+    "Use memoryFacts IDs that start with mem_ for saved memory answers.",
+    "If you cannot answer a target field from sourceFacts or memoryFacts, put it in missingInformation.",
+    "Do not invent missing facts. Do not include markdown, code fences, comments, or explanation.",
+    "Return only valid JSON using this exact compact Draft Answers schema:",
+    JSON.stringify(getAnswerSelectionSchemaExample(), null, 2),
+    "Answer Evidence JSON:",
+    JSON.stringify(createAnswerEvidenceForAi(), null, 2),
   ].join("\n\n");
+}
+
+function getAnswerSelectionSchemaExample() {
+  return {
+    draftAnswers: [
+      {
+        evidenceId: "fact_1",
+        label: "",
+        answer: "",
+      },
+    ],
+    missingInformation: [
+      {
+        label: "",
+        question: "",
+      },
+    ],
+  };
+}
+
+function createAnswerEvidenceForAi() {
+  return {
+    targetFields: normalizeArray(appState.compactEvidenceJson && appState.compactEvidenceJson.targetFields).map(
+      (field) => ({
+        id: field.id,
+        label: field.label || field.fieldName || field.field || "",
+        instruction: field.instruction || field.question || "",
+        required: field.required !== false,
+      })
+    ),
+    sourceFacts: normalizeArray(appState.compactEvidenceJson && appState.compactEvidenceJson.sourceFacts).map(
+      (fact, index) => ({
+        id: fact.id || `fact_${index + 1}`,
+        label: fact.label || fact.fieldName || fact.field || "",
+        value: fact.value == null ? "" : String(fact.value),
+        category: fact.category || "general",
+        sensitivity: fact.sensitivity || "medium",
+        sourceDocName: fact.sourceDocName || fact.source_doc_name || fact.source || "",
+      })
+    ),
+    memoryFacts: createMemoryFactsForAi(),
+  };
+}
+
+function createMemoryFactsForAi() {
+  return normalizeArray(appState.savedMemory).map((item, index) => ({
+    id: `mem_${index + 1}`,
+    memoryId: item.id || "",
+    label: item.label || "",
+    value: item.value == null ? "" : String(item.value),
+    category: item.category || "general",
+    sensitivity: item.sensitivity || "medium",
+    lastConfirmedAt: item.last_confirmed_at || item.lastConfirmedAt || "",
+  }));
+}
+
+function expandAnswerSelectionToReviewData(data) {
+  const source = data && typeof data === "object" ? data : {};
+  const answerEvidence = createAnswerEvidenceForAi();
+  const draftAnswers = normalizeArray(source.draftAnswers).map((item, index) =>
+    expandAnswerSelectionItem(item, index, answerEvidence)
+  );
+  const missingInformation = normalizeArray(source.missingInformation).map(
+    (item, index) => ({
+      id: item.id || `missing_${index + 1}`,
+      field: item.label || item.field || item.fieldName || "Untitled field",
+      reason: item.reason || "Anna could not find enough information in source documents or saved memory.",
+      question: item.question || item.instruction || item.label || item.field || "",
+      status: "needs_user_input",
+    })
+  );
+  const targetForm = appState.evidenceJson && appState.evidenceJson.targetForm;
+
+  return {
+    formOverview: {
+      title: targetForm && targetForm.fileName ? targetForm.fileName : "Parsed form",
+      purpose: "Draft answers generated from compact evidence and saved memory.",
+    },
+    draftAnswers,
+    missingInformation,
+    proposedMemoryUpdates: [],
+    savedMemory: appState.savedMemory,
+  };
+}
+
+function expandAnswerSelectionItem(item, index, answerEvidence) {
+  const source = item && typeof item === "object" ? item : {};
+  const evidenceId = source.evidenceId || source.evidence_id || source.id || "";
+  const label = source.label || source.field || source.fieldName || `Draft answer ${index + 1}`;
+  const answer = source.answer == null ? "" : String(source.answer);
+  const sourceFact = findEvidenceById(answerEvidence.sourceFacts, evidenceId);
+  const memoryFact = findEvidenceById(answerEvidence.memoryFacts, evidenceId);
+  const exactMemory = memoryFact || findMatchingMemoryFact(label, answer, answerEvidence.memoryFacts);
+  const exactSource = sourceFact || findMatchingSourceFact(label, answer, answerEvidence.sourceFacts);
+  const answerSource = getExpandedAnswerSource(evidenceId, exactSource, exactMemory);
+  const memoryStatus = exactMemory ? "saved" : "not_saved";
+  const reusableFact = exactMemory || exactSource || null;
+
+  return {
+    id: `draft_${index + 1}`,
+    field: label,
+    question: label,
+    answer,
+    confidence: "medium",
+    status: "needs_user_review",
+    answerSource,
+    sourcesUsed: exactSource && exactSource.sourceDocName ? [exactSource.sourceDocName] : [],
+    memoryUsed: exactMemory && exactMemory.label ? [exactMemory.label] : [],
+    memoryStatus,
+    memoryLabel: label,
+    memoryCategory: reusableFact && reusableFact.category ? reusableFact.category : "general",
+    memorySensitivity: normalizeSensitivity(reusableFact && reusableFact.sensitivity ? reusableFact.sensitivity : "medium"),
+    memoryReason: exactMemory
+      ? "Matched saved memory."
+      : "Generated from source evidence and can be saved after review.",
+    approved: false,
+  };
+}
+
+function findEvidenceById(items, id) {
+  if (!id) return null;
+  return normalizeArray(items).find((item) => item.id === id) || null;
+}
+
+function findMatchingSourceFact(label, answer, sourceFacts) {
+  return normalizeArray(sourceFacts).find((fact) => {
+    return sameMatchText(fact.label, label) || sameMatchText(fact.value, answer);
+  }) || null;
+}
+
+function findMatchingMemoryFact(label, answer, memoryFacts) {
+  return normalizeArray(memoryFacts).find((item) => {
+    return sameMatchText(item.label, label) && sameMatchText(item.value, answer);
+  }) || null;
+}
+
+function getExpandedAnswerSource(evidenceId, sourceFact, memoryFact) {
+  if (sourceFact && memoryFact) return "memory_and_source";
+  if (String(evidenceId).startsWith("mem_") || memoryFact) return "memory";
+  if (String(evidenceId).startsWith("fact_") || sourceFact) return "source_document";
+  return "source_document";
+}
+
+function sameMatchText(left, right) {
+  return normalizeMatchText(left) === normalizeMatchText(right);
+}
+
+function normalizeMatchText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 function getReviewJsonSchemaExample() {
   return {
