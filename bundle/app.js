@@ -377,7 +377,6 @@ function renderFormOverview() {
   target.innerHTML = `
     <dl class="overview-definition-list">
       ${renderOverviewItem("Form Title", overview.title || "Untitled form")}
-      ${renderOverviewItem("Purpose", overview.purpose || "Not specified")}
       ${renderOverviewItem("Draft Answers", appState.draftAnswers.length)}
       ${renderOverviewItem("Missing Items", appState.missingInformation.length)}
     </dl>
@@ -985,6 +984,7 @@ function createCompactEvidencePrompt() {
     "Source document text is optional. If no source documents are provided, sourceFacts may be empty.",
     "When source document text exists, extract facts that may answer target fields or become reusable memory.",
     "Flatten source facts across all source documents. Always include sourceDocName for each source fact.",
+    "Classify each source fact sensitivity as low, medium, or high based on the data itself: high for private identifiers/contact/personal data such as phone, email, date of birth, address, ID/passport, financial, or health data; medium for education, work history, skills, GPA, institution, job title, achievements, or experience; low for general non-sensitive preferences or public reusable notes. If unsure, choose the higher reasonable level.",
     "Do not draft final answers yet. Do not save memory. Do not invent facts.",
     "Return only valid JSON. Do not include markdown, code fences, comments, or explanation.",
     "Use this exact Compact Evidence JSON schema:",
@@ -1023,9 +1023,17 @@ function getCompactEvidenceSchemaExample() {
     sourceFacts: [
       {
         id: "fact_1",
-        fieldName: "",
+        fieldName: "Phone Number",
         value: "",
-        category: "general",
+        category: "personal",
+        sensitivity: "high",
+        sourceDocName: "",
+      },
+      {
+        id: "fact_2",
+        fieldName: "Relevant Skills",
+        value: "",
+        category: "professional",
         sensitivity: "medium",
         sourceDocName: "",
       },
