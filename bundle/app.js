@@ -47,6 +47,13 @@ const appState = {
   missingInformation: [],
   proposedMemoryUpdates: [],
   savedMemory: [],
+  currentSessionId: null,
+  currentTargetFormFileName: "",
+  currentSourceDocumentFileNames: [],
+  draftSessions: [],
+  sessionDirty: false,
+  sessionStatus: "info",
+  sessionStatusMessage: "No draft session open.",
   evidenceJson: null,
   compactEvidenceJson: null,
   parseStatus: "idle",
@@ -89,6 +96,9 @@ function attachEventListeners() {
   const generateButton = document.getElementById("generate-draft-answers-button");
   const targetFileInput = document.getElementById("target-form-file");
   const sourceFileInput = document.getElementById("source-document-files");
+  const newFormFillerButton = document.getElementById("new-form-filler-button");
+  const saveDraftSessionButton = document.getElementById("save-draft-session-button");
+  const refreshDraftSessionsButton = document.getElementById("refresh-draft-sessions-button");
 
   if (refreshButton) {
     refreshButton.addEventListener("click", () => handleRefreshSavedMemory(refreshButton));
@@ -116,6 +126,18 @@ function attachEventListeners() {
 
   if (generateButton) {
     generateButton.addEventListener("click", handleGenerateDraftAnswers);
+  }
+
+  if (newFormFillerButton) {
+    newFormFillerButton.addEventListener("click", handleNewFormFiller);
+  }
+
+  if (saveDraftSessionButton) {
+    saveDraftSessionButton.addEventListener("click", () => handleSaveDraftSession(saveDraftSessionButton));
+  }
+
+  if (refreshDraftSessionsButton) {
+    refreshDraftSessionsButton.addEventListener("click", () => handleRefreshDraftSessions(refreshDraftSessionsButton));
   }
 
   if (targetFileInput) {
@@ -225,6 +247,7 @@ function renderApp() {
   renderCompactEvidence();
   renderFormOverview();
   renderDraftAnswers();
+  renderDraftSessions();
   renderSavedMemory();
   renderStatusMessage();
 }
@@ -529,6 +552,48 @@ function renderProposedMemoryUpdates() {
     .join("");
 }
 
+function renderDraftSessions() {
+  const target = document.getElementById("draft-sessions-list");
+
+  if (!target) return;
+
+  setSessionStatus(appState.sessionStatusMessage, appState.sessionStatus);
+
+  if (appState.draftSessions.length === 0) {
+    target.innerHTML = renderEmptyState("No draft sessions saved yet.");
+    return;
+  }
+
+  target.innerHTML = appState.draftSessions
+    .map((session) => {
+      const isOpen = session.id && session.id === appState.currentSessionId;
+      const sourceNames = normalizeArray(session.source_document_file_names);
+      const sourceSummary = sourceNames.length > 0
+        ? `${sourceNames.length} source document${sourceNames.length === 1 ? "" : "s"}`
+        : "No source documents";
+
+      return `
+        <article class="draft-session-row${isOpen ? " draft-session-row-open" : ""}">
+          <div class="draft-session-main">
+            <h3>${escapeHtml(session.title || "Untitled draft")}</h3>
+            <p>${escapeHtml(session.target_form_file_name || "No target form name")}</p>
+          </div>
+          <div class="draft-session-meta">
+            ${isOpen ? '<span class="status-badge status-approved">Open</span>' : ""}
+            <span>${escapeHtml(sourceSummary)}</span>
+            <span>${escapeHtml(Number(session.draft_answer_count || 0))} answers</span>
+            <span>${escapeHtml(Number(session.missing_information_count || 0))} missing</span>
+            <span>Updated ${escapeHtml(formatMemoryDate(session.updated_at))}</span>
+          </div>
+          <div class="draft-session-actions">
+            <button type="button" class="ghost-button" data-action="open-draft-session" data-session-id="${escapeHtml(session.id)}">Open</button>
+            <button type="button" class="danger-button" data-action="delete-draft-session" data-session-id="${escapeHtml(session.id)}">Delete</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
 function renderSavedMemory() {
   const target = document.getElementById("saved-memory-list");
 
@@ -599,6 +664,7 @@ function handleDelegatedClick(event) {
   const action = button.dataset.action;
   const answerId = button.dataset.answerId;
   const memoryId = button.dataset.memoryId;
+  const sessionId = button.dataset.sessionId;
 
   if (action === "approve-answer" && answerId) {
     handleApproveAnswer(answerId);
@@ -625,6 +691,16 @@ function handleDelegatedClick(event) {
     return;
   }
 
+  if (action === "open-draft-session" && sessionId) {
+    handleOpenDraftSession(sessionId, button);
+    return;
+  }
+
+  if (action === "delete-draft-session" && sessionId) {
+    handleDeleteDraftSession(sessionId, button);
+    return;
+  }
+
   if (action === "delete-memory" && memoryId) {
     handleDeleteMemoryItem(memoryId, button);
     return;
@@ -645,14 +721,259 @@ function handleDelegatedInput(event) {
 
   if (target.matches("[data-answer-id]")) {
     handleDraftAnswerChange(target.dataset.answerId, target.value);
+    markSessionDirty();
   }
 
   if (target.matches("[data-memory-id]")) {
     handleMemoryValueChange(target.dataset.memoryId, target.value);
+    markSessionDirty();
   }
 }
 
+function handleNewFormFiller() {
+  clearWorkspaceForNewSession();
+  setSessionStatus("New form filler ready. Save when you want to keep this draft.", "info");
+  setStatus("New form filler ready.");
+  renderApp();
+}
+
+async function handleSaveDraftSession(button) {
+  syncDraftAnswerInputsToState();
+
+  if (!appState.formOverview && appState.draftAnswers.length === 0) {
+    setSessionStatus("Nothing to save yet. Upload a form and generate draft answers first.", "error");
+    setStatus("Nothing to save yet.");
+    showTemporaryButtonFeedback(button, "Nothing to save");
+    return;
+  }
+
+  appState.sessionStatus = "saving";
+  setSessionStatus("Saving draft session...", "info");
+  showTemporaryButtonFeedback(button, "Saving...");
+
+  const result = await callTool("save_draft_session", {
+    session: createDraftSessionPayload(),
+  });
+
+  if (result.success) {
+    const session = result.data && result.data.session ? normalizeDraftSession(result.data.session) : null;
+
+    if (session && session.id) {
+      appState.currentSessionId = session.id;
+      upsertDraftSessionPreview(session);
+    }
+
+    appState.sessionDirty = false;
+    setSessionStatus(result.data && result.data.created ? "Draft session saved." : "Draft session updated.", "success");
+    setStatus(result.data && result.data.created ? "Draft session saved." : "Draft session updated.");
+    showTemporaryButtonFeedback(button, "Saved!");
+    renderApp();
+    return;
+  }
+
+  const message = result.error && result.error.message ? result.error.message : "Draft session could not be saved.";
+  setSessionStatus(`Draft session could not be saved: ${message}`, "error");
+  setStatus(`Draft session could not be saved: ${message}`);
+  showTemporaryButtonFeedback(button, "Save failed");
+}
+
+async function handleRefreshDraftSessions(button) {
+  setSessionStatus("Loading draft sessions...", "info");
+  showTemporaryButtonFeedback(button, "Refreshing...");
+
+  const result = await callTool("list_draft_sessions", {});
+
+  if (result.success) {
+    appState.draftSessions = normalizeArray(result.data && result.data.sessions).map(normalizeDraftSession);
+    setSessionStatus("Draft sessions refreshed.", "success");
+    setStatus("Draft sessions refreshed.");
+    showTemporaryButtonFeedback(button, "Refreshed!");
+    renderDraftSessions();
+    return;
+  }
+
+  const message = result.error && result.error.message ? result.error.message : "Draft sessions could not be loaded.";
+  setSessionStatus(`Draft sessions could not be loaded: ${message}`, "error");
+  setStatus(`Draft sessions could not be loaded: ${message}`);
+  showTemporaryButtonFeedback(button, "Refresh failed");
+}
+
+async function handleOpenDraftSession(sessionId, button) {
+  showTemporaryButtonFeedback(button, "Opening...");
+  setSessionStatus("Opening draft session...", "info");
+
+  const result = await callTool("get_draft_session", { id: sessionId });
+
+  if (result.success && result.data && result.data.session) {
+    loadDraftSessionSnapshot(result.data.session);
+    showTemporaryButtonFeedback(button, "Opened!");
+    setSessionStatus("Draft session opened.", "success");
+    setStatus("Draft session opened. Continue reviewing before saving memory.");
+    renderApp();
+    return;
+  }
+
+  const message = result.error && result.error.message ? result.error.message : "Draft session could not be opened.";
+  setSessionStatus(`Draft session could not be opened: ${message}`, "error");
+  setStatus(`Draft session could not be opened: ${message}`);
+  showTemporaryButtonFeedback(button, "Open failed");
+}
+
+async function handleDeleteDraftSession(sessionId, button) {
+  showTemporaryButtonFeedback(button, "Deleting...");
+  setSessionStatus("Deleting draft session...", "info");
+
+  const result = await callTool("delete_draft_session", { id: sessionId });
+
+  if (result.success) {
+    appState.draftSessions = appState.draftSessions.filter((session) => session.id !== sessionId);
+
+    if (appState.currentSessionId === sessionId) {
+      appState.currentSessionId = null;
+      appState.sessionDirty = hasVisibleWorkspaceData();
+    }
+
+    setSessionStatus("Draft session deleted.", "success");
+    setStatus("Draft session deleted.");
+    showTemporaryButtonFeedback(button, "Deleted!");
+    renderApp();
+    return;
+  }
+
+  const message = result.error && result.error.message ? result.error.message : "Draft session could not be deleted.";
+  setSessionStatus(`Draft session could not be deleted: ${message}`, "error");
+  setStatus(`Draft session could not be deleted: ${message}`);
+  showTemporaryButtonFeedback(button, "Delete failed");
+}
+
+function clearWorkspaceForNewSession() {
+  const targetInput = document.getElementById("target-form-file");
+  const sourceInput = document.getElementById("source-document-files");
+
+  if (targetInput) targetInput.value = "";
+  if (sourceInput) sourceInput.value = "";
+
+  appState.currentSessionId = null;
+  appState.currentTargetFormFileName = "";
+  appState.currentSourceDocumentFileNames = [];
+  appState.sessionDirty = false;
+  appState.formOverview = null;
+  appState.draftAnswers = [];
+  appState.missingInformation = [];
+  appState.proposedMemoryUpdates = [];
+  appState.evidenceJson = null;
+  appState.compactEvidenceJson = null;
+  appState.parseStatus = "idle";
+  appState.parseError = null;
+  appState.compactEvidenceStatus = "idle";
+  appState.compactEvidenceError = null;
+  appState.draftStatus = "idle";
+  appState.draftError = null;
+  updateSelectedFileSummaries();
+  setUploadStatus("Parse button ready.");
+}
+
+function createDraftSessionPayload() {
+  const title = appState.formOverview && appState.formOverview.title
+    ? appState.formOverview.title
+    : appState.currentTargetFormFileName || "Untitled draft";
+
+  return {
+    id: appState.currentSessionId || undefined,
+    title,
+    target_form_file_name: appState.currentTargetFormFileName || title,
+    source_document_file_names: appState.currentSourceDocumentFileNames.slice(),
+    formOverview: appState.formOverview,
+    draftAnswers: appState.draftAnswers,
+    missingInformation: appState.missingInformation,
+    proposedMemoryUpdates: appState.proposedMemoryUpdates,
+  };
+}
+
+function loadDraftSessionSnapshot(session) {
+  const normalized = normalizeReviewData(session || {});
+
+  appState.currentSessionId = session.id || null;
+  appState.currentTargetFormFileName = session.target_form_file_name || "";
+  appState.currentSourceDocumentFileNames = normalizeArray(session.source_document_file_names);
+  appState.formOverview = normalized.formOverview;
+  appState.draftAnswers = normalized.draftAnswers;
+  appState.missingInformation = normalized.missingInformation;
+  appState.proposedMemoryUpdates = normalized.proposedMemoryUpdates;
+  appState.evidenceJson = null;
+  appState.compactEvidenceJson = null;
+  appState.parseStatus = "idle";
+  appState.parseError = null;
+  appState.compactEvidenceStatus = "idle";
+  appState.compactEvidenceError = null;
+  appState.draftStatus = "draft_ready";
+  appState.draftError = null;
+  appState.sessionDirty = false;
+  upsertDraftSessionPreview(normalizeDraftSession(session));
+}
+
+function normalizeDraftSession(session) {
+  const source = session && typeof session === "object" ? session : {};
+
+  return {
+    id: source.id || "",
+    title: source.title || (source.formOverview && source.formOverview.title) || "Untitled draft",
+    target_form_file_name: source.target_form_file_name || "",
+    source_document_file_names: normalizeArray(source.source_document_file_names),
+    draft_answer_count: Number(source.draft_answer_count || normalizeArray(source.draftAnswers).length || 0),
+    missing_information_count: Number(source.missing_information_count || normalizeArray(source.missingInformation).length || 0),
+    created_at: source.created_at || null,
+    updated_at: source.updated_at || null,
+  };
+}
+
+function upsertDraftSessionPreview(session) {
+  if (!session || !session.id) return;
+
+  const preview = normalizeDraftSession({
+    ...session,
+    draft_answer_count: session.draft_answer_count || appState.draftAnswers.length,
+    missing_information_count: session.missing_information_count || appState.missingInformation.length,
+  });
+  const existingIndex = appState.draftSessions.findIndex((item) => item.id === preview.id);
+
+  if (existingIndex >= 0) {
+    appState.draftSessions[existingIndex] = preview;
+  } else {
+    appState.draftSessions.unshift(preview);
+  }
+
+  appState.draftSessions.sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+}
+
+function markSessionDirty() {
+  if (hasVisibleWorkspaceData()) {
+    appState.sessionDirty = true;
+  }
+}
+
+function hasVisibleWorkspaceData() {
+  return Boolean(
+    appState.formOverview ||
+      appState.draftAnswers.length > 0 ||
+      appState.missingInformation.length > 0 ||
+      appState.proposedMemoryUpdates.length > 0
+  );
+}
+
+function syncDraftAnswerInputsToState() {
+  const inputs = Array.from(document.querySelectorAll(".draft-answer-input"));
+
+  for (const input of inputs) {
+    const answer = appState.draftAnswers.find((item) => item.id === input.dataset.answerId);
+
+    if (answer) {
+      answer.answer = input.value;
+    }
+  }
+}
 function handleLoadNeutralDemo() {
+  appState.currentSessionId = null;
   loadReviewData(createNeutralDemoData());
   setStatus("Neutral demo data loaded for testing.");
 }
@@ -878,17 +1199,28 @@ function loadEvidenceJson(data) {
   appState.parseError = null;
   appState.compactEvidenceStatus = data ? "pending" : "idle";
   appState.compactEvidenceError = null;
+
+  if (data && data.targetForm) {
+    appState.currentTargetFormFileName = data.targetForm.fileName || appState.currentTargetFormFileName;
+  }
+
+  if (data && Array.isArray(data.sourceDocuments)) {
+    appState.currentSourceDocumentFileNames = data.sourceDocuments
+      .map((document) => document && document.fileName)
+      .filter(Boolean);
+  }
+
+  markSessionDirty();
   renderParsedEvidence();
   renderCompactEvidence();
 }
-
 function loadCompactEvidenceJson(data) {
   appState.compactEvidenceJson = data ? normalizeCompactEvidence(data) : null;
   appState.compactEvidenceStatus = data ? "ready" : "idle";
   appState.compactEvidenceError = null;
+  markSessionDirty();
   renderCompactEvidence();
 }
-
 async function handleGenerateCompactEvidence() {
   await generateCompactEvidenceFromExtractedText();
 }
@@ -1599,6 +1931,7 @@ function loadReviewData(data) {
     normalized.savedMemory.length > 0 || normalized.hasSavedMemory
       ? normalized.savedMemory
       : appState.savedMemory;
+  markSessionDirty();
 
   renderApp();
 }
@@ -2213,6 +2546,17 @@ function setUploadStatus(message, type = "info") {
 
   target.textContent = message;
   target.className = `upload-status upload-status-${type}`;
+}
+function setSessionStatus(message, type = "info") {
+  appState.sessionStatus = type;
+  appState.sessionStatusMessage = message;
+
+  const target = document.getElementById("draft-session-status-message");
+
+  if (!target) return;
+
+  target.textContent = message;
+  target.className = `session-status session-status-${type}`;
 }
 
 function renderBridgeDiagnostics() {

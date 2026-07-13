@@ -10,6 +10,10 @@ const {
   saveApprovedMemory,
   listMemory,
   deleteMemoryItem,
+  listDraftSessions,
+  getDraftSession,
+  saveDraftSession,
+  deleteDraftSession,
 } = require("./memoryStore");
 
 const PROTOCOL_VERSION = "2.0";
@@ -21,13 +25,13 @@ const pendingHostRequests = new Map();
 const MANIFEST = {
   name: "form-memory-store",
   display_name: "Form Memory Store",
-  version: "0.1.8",
+  version: "0.1.9",
   description:
     "Stores and retrieves user-approved reusable memory cards for Form Memory Filler.",
   host_capabilities: ["aps.kv"],
   storage: {
     scopes: ["user"],
-    keys: ["form-memory-filler/cards.v1"],
+    keys: ["form-memory-filler/cards.v1", "form-memory-filler/draft-sessions.v1"],
   },
   tools: [
     {
@@ -73,6 +77,49 @@ const MANIFEST = {
         },
       ],
     },
+    {
+      name: "save_draft_session",
+      description:
+        "Save or update a draft form-filling session without storing raw documents.",
+      parameters: [
+        {
+          name: "session",
+          type: "object",
+          description:
+            "Draft session snapshot. Optional id updates an existing draft session.",
+          required: true,
+        },
+      ],
+    },
+    {
+      name: "list_draft_sessions",
+      description: "List saved draft form-filling sessions for the current user.",
+      parameters: [],
+    },
+    {
+      name: "get_draft_session",
+      description: "Return one saved draft session by ID.",
+      parameters: [
+        {
+          name: "id",
+          type: "string",
+          description: "Draft session ID to open.",
+          required: true,
+        },
+      ],
+    },
+    {
+      name: "delete_draft_session",
+      description: "Delete one saved draft session by ID.",
+      parameters: [
+        {
+          name: "id",
+          type: "string",
+          description: "Draft session ID to delete.",
+          required: true,
+        },
+      ],
+    },
   ],
   runtime: {
     type: "node",
@@ -85,6 +132,10 @@ const TOOL_DISPATCH = {
   save_approved_memory: saveApprovedMemory,
   list_memory: listMemory,
   delete_memory_item: deleteMemoryItem,
+  save_draft_session: saveDraftSession,
+  list_draft_sessions: listDraftSessions,
+  get_draft_session: getDraftSession,
+  delete_draft_session: deleteDraftSession,
 };
 
 async function handleJsonRpcRequest(request) {
@@ -183,9 +234,17 @@ function createMissingStorageTokenError(toolName) {
       tool: "form-memory-store",
       operation: toolName || null,
       storage_scope: "user",
-      storage_key: "form-memory-filler/cards.v1",
+      storage_key: getStorageKeyForTool(toolName),
     }
   );
+}
+
+function getStorageKeyForTool(toolName) {
+  if (String(toolName || "").includes("draft_session")) {
+    return "form-memory-filler/draft-sessions.v1";
+  }
+
+  return "form-memory-filler/cards.v1";
 }
 
 function toolNeedsStorage(toolName) {

@@ -55,6 +55,26 @@
 
         </section>
 
+        <section class="panel" id="draft-sessions-section" aria-labelledby="draft-sessions-heading">
+          <div class="section-heading">
+            <h2 id="draft-sessions-heading">Draft Sessions</h2>
+            <p>Save and reopen unfinished form-filling sessions.</p>
+          </div>
+
+          <div class="section-actions">
+            <button id="new-form-filler-button" type="button">New Form Filler</button>
+            <button id="save-draft-session-button" class="primary-button" type="button">Save Draft Session</button>
+            <button id="refresh-draft-sessions-button" type="button">Refresh Draft Sessions</button>
+          </div>
+
+          <div id="draft-session-status-message" class="session-status session-status-info" role="status">
+            No draft session open.
+          </div>
+
+          <div id="draft-sessions-list" class="draft-session-list">
+            <!-- app.js renders saved draft sessions here -->
+          </div>
+        </section>
         <section class="panel" id="form-overview-section" aria-labelledby="form-overview-heading">
           <div class="section-heading">
             <h2 id="form-overview-heading">Form Overview</h2>

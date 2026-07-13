@@ -655,6 +655,93 @@ textarea:focus-visible {
   font-size: 14px;
 }
 
+
+.session-status {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.session-status-info {
+  color: #3730a3;
+  background: var(--primary-soft);
+  border-color: #c7d2fe;
+}
+
+.session-status-success {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: #bbf7d0;
+}
+
+.session-status-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: #fecaca;
+}
+
+.draft-session-list {
+  display: grid;
+  gap: 8px;
+}
+
+.draft-session-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, auto) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid var(--soft-border);
+  border-radius: 12px;
+}
+
+.draft-session-row-open {
+  border-color: #c7d2fe;
+  background: #fbfdff;
+}
+
+.draft-session-main {
+  min-width: 0;
+}
+
+.draft-session-main h3,
+.draft-session-main p {
+  margin: 0;
+}
+
+.draft-session-main h3 {
+  font-size: 15px;
+}
+
+.draft-session-main p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.draft-session-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.draft-session-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.draft-session-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+}
 @media (max-width: 768px) {
   #app {
     width: min(100% - 24px, 1120px);
