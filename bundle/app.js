@@ -34,9 +34,6 @@ const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
 const MAX_UPLOAD_FILE_LABEL = "1 MB";
-const DRAFT_PAGE_SIZE = 5;
-const DRAFT_LOAD_TIMEOUT_MS = 10000;
-const ANNA_CONNECT_TIMEOUT_MS = 5000;
 const VIEWS = {
   DRAFT_LIST: "draft_list",
   WORKSPACE: "workspace",
@@ -45,7 +42,6 @@ const VIEWS = {
 let annaClient = null;
 let annaConnectError = null;
 let currentBridgeSource = "none";
-let annaConnectPromise = null;
 
 const appState = {
   status: "idle",
@@ -61,9 +57,6 @@ const appState = {
   currentTargetFormFileName: "",
   currentSourceDocumentFileNames: [],
   draftSessions: [],
-  draftSessionsLoaded: false,
-  draftVisibleCount: DRAFT_PAGE_SIZE,
-  draftSearchQuery: "",
   sessionDirty: false,
   sessionStatus: "info",
   sessionStatusMessage: "No draft session open.",
@@ -83,67 +76,20 @@ async function init() {
   renderApp();
   setStatus("Choose a draft or create a new draft.");
   setUploadStatus("Parse button ready.");
-  setSessionStatus("Preparing draft sessions...", "info");
 
-  connectAnnaRuntimeInBackground();
-}
-
-function connectAnnaRuntimeInBackground() {
-  const connectPromise = ensureAnnaRuntimeConnected();
-
-  connectPromise.then((connected) => {
-    if (connected) {
-      refreshDraftSessionsOnStartup();
-      return;
-    }
-
+  try {
+    annaClient = await AnnaAppRuntime.connect();
+    annaConnectError = null;
+    currentBridgeSource = "AnnaAppRuntime.connect";
+  } catch (error) {
+    annaClient = null;
+    annaConnectError = error;
+    currentBridgeSource = "none";
     setUploadStatus("Anna bridge is unavailable. Upload UI is ready, but tools may not run.", "error");
-    setSessionStatus("Draft sessions could not be loaded because Anna bridge is unavailable.", "error");
-    renderBridgeDiagnostics();
-    renderDraftSessions();
-  });
-
-  Promise.race([
-    connectPromise,
-    wait(ANNA_CONNECT_TIMEOUT_MS).then(() => false),
-  ]).then((connectedQuickly) => {
-    if (!connectedQuickly && !annaClient) {
-      annaConnectError = new Error("Anna bridge connection is taking longer than expected.");
-      currentBridgeSource = "none";
-      setSessionStatus("Connecting to Anna. Drafts will load when the app is ready.", "info");
-      renderBridgeDiagnostics();
-      renderDraftSessions();
-    }
-  });
-}
-
-function ensureAnnaRuntimeConnected() {
-  if (annaClient && annaClient.tools && typeof annaClient.tools.invoke === "function") {
-    return Promise.resolve(true);
   }
 
-  if (!annaConnectPromise) {
-    annaConnectPromise = AnnaAppRuntime.connect()
-      .then((client) => {
-        annaClient = client;
-        annaConnectError = null;
-        currentBridgeSource = "AnnaAppRuntime.connect";
-        renderBridgeDiagnostics();
-        return true;
-      })
-      .catch((error) => {
-        annaClient = null;
-        annaConnectError = error;
-        currentBridgeSource = "none";
-        renderBridgeDiagnostics();
-        return false;
-      })
-      .finally(() => {
-        annaConnectPromise = null;
-      });
-  }
-
-  return annaConnectPromise;
+  renderBridgeDiagnostics();
+  await refreshDraftSessionsOnStartup();
 }
 
 function attachEventListeners() {
@@ -159,9 +105,7 @@ function attachEventListeners() {
   const sourceFileInput = document.getElementById("source-document-files");
   const newDraftButton = document.getElementById("new-draft-button");
   const saveDraftSessionButton = document.getElementById("save-draft-session-button");
-  const loadMoreDraftsButton = document.getElementById("load-more-drafts-button");
-  const searchDraftsButton = document.getElementById("search-drafts-button");
-  const draftSearchInput = document.getElementById("draft-search-input");
+  const refreshDraftSessionsButton = document.getElementById("refresh-draft-sessions-button");
   const backToDraftListButton = document.getElementById("back-to-draft-list-button");
   const cancelWorkspaceButton = document.getElementById("cancel-workspace-button");
 
@@ -201,22 +145,10 @@ function attachEventListeners() {
     saveDraftSessionButton.addEventListener("click", () => handleSaveDraftSession(saveDraftSessionButton));
   }
 
-  if (loadMoreDraftsButton) {
-    loadMoreDraftsButton.addEventListener("click", handleLoadMoreDrafts);
+  if (refreshDraftSessionsButton) {
+    refreshDraftSessionsButton.addEventListener("click", () => handleRefreshDraftSessions(refreshDraftSessionsButton));
   }
 
-  if (searchDraftsButton) {
-    searchDraftsButton.addEventListener("click", handleSearchDrafts);
-  }
-
-  if (draftSearchInput) {
-    draftSearchInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        handleSearchDrafts();
-      }
-    });
-  }
   if (backToDraftListButton) {
     backToDraftListButton.addEventListener("click", handleBackToDraftList);
   }
@@ -675,33 +607,13 @@ function renderDraftSessions() {
   if (!target) return;
 
   setSessionStatus(appState.sessionStatusMessage, appState.sessionStatus);
-  syncDraftSearchInput();
-
-  if (!appState.draftSessionsLoaded && appState.draftSessions.length === 0) {
-    const message = appState.sessionStatus === "error"
-      ? "Drafts could not be loaded yet. Use Load More Drafts to try again."
-      : "Loading saved drafts...";
-    target.innerHTML = renderEmptyState(message);
-    renderDraftListControls(0);
-    return;
-  }
 
   if (appState.draftSessions.length === 0) {
     target.innerHTML = renderEmptyState("No draft sessions saved yet.");
-    renderDraftListControls(0);
     return;
   }
 
-  const filteredSessions = getFilteredDraftSessions();
-  const visibleSessions = filteredSessions.slice(0, appState.draftVisibleCount);
-  renderDraftListControls(filteredSessions.length);
-
-  if (visibleSessions.length === 0) {
-    target.innerHTML = renderEmptyState("No drafts match your search.");
-    return;
-  }
-
-  target.innerHTML = visibleSessions
+  target.innerHTML = appState.draftSessions
     .map((session) => {
       const isOpen = session.id && session.id === appState.currentSessionId;
       const sourceNames = normalizeArray(session.source_document_file_names);
@@ -736,50 +648,6 @@ function renderDraftSessions() {
       `;
     })
     .join("");
-}
-
-function getFilteredDraftSessions() {
-  const query = appState.draftSearchQuery.trim().toLowerCase();
-
-  if (!query) {
-    return appState.draftSessions;
-  }
-
-  return appState.draftSessions.filter((session) => {
-    const searchableText = [
-      session.title,
-      session.target_form_file_name,
-      ...normalizeArray(session.source_document_file_names),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return searchableText.includes(query);
-  });
-}
-
-function renderDraftListControls(filteredCount) {
-  const button = document.getElementById("load-more-drafts-button");
-
-  if (!button) return;
-
-  const hasMore = filteredCount > appState.draftVisibleCount;
-  button.disabled = appState.draftSessionsLoaded && !hasMore;
-  button.textContent = "Load More Drafts";
-  button.title = !appState.draftSessionsLoaded
-    ? "Load saved drafts"
-    : hasMore
-      ? "Load 5 more drafts"
-      : "No more drafts to load";
-}
-
-function syncDraftSearchInput() {
-  const input = document.getElementById("draft-search-input");
-
-  if (!input || document.activeElement === input) return;
-
-  input.value = appState.draftSearchQuery;
 }
 function renderSavedMemory() {
   const target = document.getElementById("saved-memory-list");
@@ -1005,61 +873,16 @@ async function handleSaveDraftSession(button) {
   showTemporaryButtonFeedback(button, "Save failed");
 }
 
-async function handleLoadMoreDrafts() {
-  const button = document.getElementById("load-more-drafts-button");
-
-  if (!appState.draftSessionsLoaded) {
-    await handleRefreshDraftSessions(button);
-    return;
-  }
-
-  const filteredCount = getFilteredDraftSessions().length;
-
-  appState.draftVisibleCount = Math.min(
-    appState.draftVisibleCount + DRAFT_PAGE_SIZE,
-    filteredCount
-  );
-
-  setStatus("More drafts loaded.");
-  renderDraftSessions();
-}
-
-function handleSearchDrafts() {
-  const input = document.getElementById("draft-search-input");
-  appState.draftSearchQuery = input ? input.value.trim() : "";
-  appState.draftVisibleCount = DRAFT_PAGE_SIZE;
-
-  const count = getFilteredDraftSessions().length;
-  setStatus(
-    appState.draftSearchQuery
-      ? `${count} draft${count === 1 ? "" : "s"} matched your search.`
-      : "Showing latest drafts."
-  );
-  renderDraftSessions();
-}
 async function refreshDraftSessionsOnStartup() {
   setSessionStatus("Loading draft sessions...", "info");
   setStatus("Loading draft sessions...");
 
-  const loaded = await loadDraftSessionsWithTimeout({ silent: true });
+  const loaded = await handleRefreshDraftSessions(null, { silent: true });
 
-  if (loaded) return;
-
-  await wait(900);
-  const retried = await loadDraftSessionsWithTimeout({ silent: true });
-
-  if (!retried && appState.draftSessions.length === 0) {
-    setSessionStatus("Draft sessions are taking longer than expected. Try reopening the app if they do not appear.", "error");
-    setStatus("Draft sessions could not be loaded yet.");
-    renderDraftSessions();
+  if (!loaded) {
+    await wait(900);
+    await handleRefreshDraftSessions(null, { silent: true });
   }
-}
-
-function loadDraftSessionsWithTimeout(options = {}) {
-  return Promise.race([
-    handleRefreshDraftSessions(null, options),
-    wait(DRAFT_LOAD_TIMEOUT_MS).then(() => false),
-  ]);
 }
 
 function wait(ms) {
@@ -1071,61 +894,30 @@ async function handleRefreshDraftSessions(button, options = {}) {
 
   if (!silent) {
     setSessionStatus("Loading draft sessions...", "info");
-    showTemporaryButtonFeedback(button, "Loading...");
+    showTemporaryButtonFeedback(button, "Refreshing...");
   }
 
-  const connected = await Promise.race([
-    ensureAnnaRuntimeConnected(),
-    wait(ANNA_CONNECT_TIMEOUT_MS).then(() => false),
-  ]);
-
-  if (!connected) {
-    appState.draftSessionsLoaded = false;
-    setSessionStatus("Draft sessions could not be loaded because Anna is not ready yet. Try Load More Drafts again.", "error");
-    setStatus("Draft sessions could not be loaded yet.");
-
-    if (!silent) {
-      showTemporaryButtonFeedback(button, "Try again");
-    }
-
-    renderDraftSessions();
-    return false;
-  }
-
-  const result = await callToolWithTimeout(
-    "list_draft_sessions",
-    {},
-    DRAFT_LOAD_TIMEOUT_MS,
-    {
-      code: "DRAFT_SESSIONS_TIMEOUT",
-      message: "Draft sessions are taking longer than expected. Try again in a moment.",
-    }
-  );
+  const result = await callTool("list_draft_sessions", {});
 
   if (result.success) {
-    appState.draftSessionsLoaded = true;
-    appState.draftSessions = normalizeArray(result.data && result.data.sessions)
-      .map(normalizeDraftSession)
-      .sort(compareDraftSessionsNewestFirst);
-    appState.draftVisibleCount = DRAFT_PAGE_SIZE;
+    appState.draftSessions = normalizeArray(result.data && result.data.sessions).map(normalizeDraftSession);
     setSessionStatus(appState.draftSessions.length > 0 ? "Draft sessions loaded." : "No draft sessions saved yet.", "info");
     setStatus("Draft sessions loaded.");
 
     if (!silent) {
-      showTemporaryButtonFeedback(button, "Loaded!");
+      showTemporaryButtonFeedback(button, "Refreshed!");
     }
 
     renderDraftSessions();
     return true;
   }
 
-  appState.draftSessionsLoaded = false;
   const message = result.error && result.error.message ? result.error.message : "Draft sessions could not be loaded.";
   setSessionStatus(`Draft sessions could not be loaded: ${message}`, "error");
   setStatus(`Draft sessions could not be loaded: ${message}`);
 
   if (!silent) {
-    showTemporaryButtonFeedback(button, "Load failed");
+    showTemporaryButtonFeedback(button, "Refresh failed");
   }
 
   return false;
@@ -1755,9 +1547,7 @@ function createCompactEvidencePrompt() {
     JSON.stringify(getCompactEvidenceSchemaExample(), null, 2),
     "Extracted document text:",
     JSON.stringify(createExtractedTextInputForAi(appState.evidenceJson), null, 2),
-  ].join("
-
-");
+  ].join("\n\n");
 }
 
 function createExtractedTextInputForAi(evidence) {
@@ -1853,9 +1643,7 @@ function createDraftGenerationPrompt() {
     JSON.stringify(getAnswerSelectionSchemaExample(), null, 2),
     "Answer Evidence JSON:",
     JSON.stringify(createAnswerEvidenceForAi(), null, 2),
-  ].join("
-
-");
+  ].join("\n\n");
 }
 
 function getAnswerSelectionSchemaExample() {
@@ -2710,18 +2498,6 @@ async function handleDeleteMemoryItem(memoryId, button) {
   setStatus(`Memory could not be deleted: ${message}`);
 }
 
-async function callToolWithTimeout(toolName, args = {}, timeoutMs = 10000, timeoutError = null, options = {}) {
-  return Promise.race([
-    callTool(toolName, args, options),
-    wait(timeoutMs).then(() => ({
-      success: false,
-      error: timeoutError || {
-        code: "TOOL_TIMEOUT",
-        message: "Tool call timed out.",
-      },
-    })),
-  ]);
-}
 async function callTool(toolName, args = {}, options = {}) {
   const toolId = options.toolId || getToolIdForMethod(toolName);
   const bridge = getToolBridge();
@@ -3058,12 +2834,10 @@ function upsertDraftSessionPreview(session) {
 
   if (existingIndex >= 0) {
     appState.draftSessions.splice(existingIndex, 1, session);
-    appState.draftSessions.sort(compareDraftSessionsNewestFirst);
     return;
   }
 
   appState.draftSessions.unshift(session);
-  appState.draftSessions.sort(compareDraftSessionsNewestFirst);
 }
 
 function syncDraftAnswerInputsToState() {
@@ -3076,12 +2850,6 @@ function syncDraftAnswerInputsToState() {
       answer.answer = input.value;
     }
   }
-}
-
-function compareDraftSessionsNewestFirst(a, b) {
-  const aTime = new Date(a && a.updated_at ? a.updated_at : 0).getTime();
-  const bTime = new Date(b && b.updated_at ? b.updated_at : 0).getTime();
-  return bTime - aTime;
 }
 function clonePlainObject(value) {
   return JSON.parse(JSON.stringify(value || {}));

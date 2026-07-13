@@ -1115,37 +1115,3 @@ textarea:focus-visible {
     right: -2px;
   }
 }
-
-.draft-search-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.draft-search-controls input {
-  min-height: 42px;
-  padding: 9px 12px;
-  color: var(--text);
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font: inherit;
-}
-
-.draft-search-controls input:focus-visible {
-  outline: 3px solid rgba(79, 70, 229, 0.22);
-  outline-offset: 2px;
-  border-color: var(--primary);
-}
-
-#load-more-drafts-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-@media (max-width: 520px) {
-  .draft-search-controls {
-    grid-template-columns: 1fr;
-  }
-}
