@@ -18,98 +18,111 @@
       </header>
 
       <main>
-        <section class="panel" id="upload-documents-section" aria-labelledby="upload-documents-heading">
-          <div class="section-heading">
-            <h2 id="upload-documents-heading">Upload Documents</h2>
-            <p>Upload DOCX files, then ask Anna to draft answers for review.</p>
-          </div>
-
-          <div class="upload-grid">
-            <div class="upload-field">
-              <span class="field-label">Target Form (.docx, max 1 MB)</span>
-              <div class="file-picker">
-                <input id="target-form-file" class="file-input" type="file" accept=".docx">
-                <label class="file-trigger" for="target-form-file">Choose .docx</label>
-                <span id="target-form-file-name" class="file-summary">No file selected</span>
+        <section class="app-view" id="draft-list-view" aria-labelledby="draft-list-heading">
+          <section class="panel draft-list-panel">
+            <div class="section-heading section-heading-with-action">
+              <div>
+                <h2 id="draft-list-heading">Draft List</h2>
+                <p>Create a new form filler or reopen a saved draft session.</p>
+              </div>
+              <div class="section-actions section-actions-inline">
+                <button id="new-draft-button" class="primary-button" type="button">New Draft</button>
+                <button id="refresh-draft-sessions-button" type="button">Refresh Drafts</button>
               </div>
             </div>
 
-            <div class="upload-field">
-              <span class="field-label">Source Documents (.docx, optional, max 1 MB each)</span>
-              <div class="file-picker">
-                <input id="source-document-files" class="file-input" type="file" accept=".docx" multiple>
-                <label class="file-trigger" for="source-document-files">Choose .docx files</label>
-                <span id="source-document-files-name" class="file-summary">No files selected</span>
+            <div id="draft-session-status-message" class="session-status session-status-info" role="status">
+              Loading draft sessions.
+            </div>
+
+            <div id="draft-sessions-list" class="draft-session-list">
+              <!-- app.js renders draft session cards here -->
+            </div>
+          </section>
+        </section>
+
+        <section class="app-view" id="workspace-view" aria-labelledby="workspace-heading" hidden>
+          <section class="panel" id="upload-documents-section" aria-labelledby="upload-documents-heading">
+            <div class="section-heading">
+              <h2 id="upload-documents-heading">Upload Documents</h2>
+              <p>Upload DOCX files, then ask Anna to draft answers for review.</p>
+            </div>
+
+            <div class="upload-grid">
+              <div class="upload-field">
+                <span class="field-label">Target Form (.docx, max 1 MB)</span>
+                <div class="file-picker">
+                  <input id="target-form-file" class="file-input" type="file" accept=".docx">
+                  <label class="file-trigger" for="target-form-file">Choose .docx</label>
+                  <span id="target-form-file-name" class="file-summary">No file selected</span>
+                </div>
+              </div>
+
+              <div class="upload-field">
+                <span class="field-label">Source Documents (.docx, optional, max 1 MB each)</span>
+                <div class="file-picker">
+                  <input id="source-document-files" class="file-input" type="file" accept=".docx" multiple>
+                  <label class="file-trigger" for="source-document-files">Choose .docx files</label>
+                  <span id="source-document-files-name" class="file-summary">No files selected</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="section-actions">
-            <button id="parse-documents-button" class="primary-button" type="button">Parse Documents</button>
-            <button id="clear-uploads-button" type="button">Clear Uploads</button>
-          </div>
+            <div class="section-actions">
+              <button id="parse-documents-button" class="primary-button" type="button">Parse Documents</button>
+              <button id="clear-uploads-button" type="button">Clear Uploads</button>
+            </div>
 
-          <div id="upload-status-message" class="upload-status upload-status-info" role="status">
-            Waiting for upload.
-          </div>
+            <div id="upload-status-message" class="upload-status upload-status-info" role="status">
+              Waiting for upload.
+            </div>
+          </section>
 
-        </section>
+          <section class="panel" id="form-overview-section" aria-labelledby="form-overview-heading">
+            <div class="section-heading">
+              <h2 id="form-overview-heading">Form Overview</h2>
+              <p>Summary of the current form-filling session.</p>
+            </div>
 
-        <section class="panel" id="draft-sessions-section" aria-labelledby="draft-sessions-heading">
-          <div class="section-heading">
-            <h2 id="draft-sessions-heading">Draft Sessions</h2>
-            <p>Save and reopen unfinished form-filling sessions.</p>
-          </div>
+            <div id="form-overview" class="overview-list">
+              <!-- app.js renders overview summary here -->
+            </div>
+          </section>
 
-          <div class="section-actions">
-            <button id="new-form-filler-button" type="button">New Form Filler</button>
-            <button id="save-draft-session-button" class="primary-button" type="button">Save Draft Session</button>
-            <button id="refresh-draft-sessions-button" type="button">Refresh Draft Sessions</button>
-          </div>
+          <section class="panel" id="draft-answers-section" aria-labelledby="draft-answers-heading">
+            <div class="section-heading">
+              <h2 id="draft-answers-heading">Draft Answers</h2>
+              <p>Review and edit answers before treating them as final.</p>
+            </div>
 
-          <div id="draft-session-status-message" class="session-status session-status-info" role="status">
-            No draft session open.
-          </div>
+            <div id="draft-answers-list" class="card-list">
+              <!-- app.js renders draft answer cards here -->
+            </div>
+          </section>
 
-          <div id="draft-sessions-list" class="draft-session-list">
-            <!-- app.js renders saved draft sessions here -->
-          </div>
-        </section>
-        <section class="panel" id="form-overview-section" aria-labelledby="form-overview-heading">
-          <div class="section-heading">
-            <h2 id="form-overview-heading">Form Overview</h2>
-            <p>Summary of the current form-filling session.</p>
-          </div>
+          <section class="panel" id="saved-memory-section" aria-labelledby="saved-memory-heading">
+            <div class="section-heading">
+              <h2 id="saved-memory-heading">Saved Memory</h2>
+              <p>Reusable memory already approved by you.</p>
+            </div>
 
-          <div id="form-overview" class="overview-list">
-            <!-- app.js renders overview summary here -->
-          </div>
-        </section>
+            <div class="section-actions">
+              <button id="refresh-memory-button" type="button">Refresh Saved Memory</button>
+            </div>
 
-        <section class="panel" id="draft-answers-section" aria-labelledby="draft-answers-heading">
-          <div class="section-heading">
-            <h2 id="draft-answers-heading">Draft Answers</h2>
-            <p>Review and edit answers before treating them as final.</p>
-          </div>
+            <div id="saved-memory-list" class="saved-memory-list">
+              <!-- app.js renders saved memory rows here -->
+            </div>
+          </section>
 
-          <div id="draft-answers-list" class="card-list">
-            <!-- app.js renders draft answer cards here -->
-          </div>
-        </section>
-
-        <section class="panel" id="saved-memory-section" aria-labelledby="saved-memory-heading">
-          <div class="section-heading">
-            <h2 id="saved-memory-heading">Saved Memory</h2>
-            <p>Reusable memory already approved by you.</p>
-          </div>
-
-          <div class="section-actions">
-            <button id="refresh-memory-button" type="button">Refresh Saved Memory</button>
-          </div>
-
-          <div id="saved-memory-list" class="saved-memory-list">
-            <!-- app.js renders saved memory rows here -->
-          </div>
+          <section class="panel workspace-actions-panel" aria-labelledby="workspace-heading">
+            <h2 id="workspace-heading" class="visually-hidden">Workspace actions</h2>
+            <div class="workspace-actions">
+              <button id="back-to-draft-list-button" type="button">Back to Draft List</button>
+              <button id="cancel-workspace-button" class="ghost-button" type="button">Cancel</button>
+              <button id="save-draft-session-button" class="primary-button" type="button">Save Draft Session</button>
+            </div>
+          </section>
         </section>
       </main>
 
@@ -118,6 +131,17 @@
           Ready.
         </div>
       </footer>
+
+      <div id="confirmation-modal" class="modal-backdrop" hidden>
+        <section class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+          <h2 id="confirmation-title">Confirm action</h2>
+          <p id="confirmation-message">Are you sure?</p>
+          <div class="modal-actions">
+            <button id="confirmation-cancel-button" type="button">Cancel</button>
+            <button id="confirmation-confirm-button" class="danger-button" type="button">Confirm</button>
+          </div>
+        </section>
+      </div>
     </div>
   </body>
 </html>

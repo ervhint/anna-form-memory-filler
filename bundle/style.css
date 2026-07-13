@@ -835,3 +835,146 @@ textarea:focus-visible {
     flex: 0 1 auto;
   }
 }
+
+.app-view[hidden],
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.section-heading-with-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-actions-inline {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+.draft-list-panel {
+  min-height: 360px;
+}
+
+.draft-session-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.draft-session-row {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+}
+
+.draft-session-main h3 {
+  font-size: 16px;
+}
+
+.draft-session-meta {
+  align-items: flex-start;
+}
+
+.draft-session-meta span:not(.status-badge) {
+  padding: 3px 0;
+}
+
+.draft-session-actions {
+  justify-content: flex-start;
+}
+
+.workspace-actions-panel {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  margin-bottom: 0;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.workspace-actions button:first-child {
+  margin-right: auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.46);
+}
+
+.confirmation-modal {
+  width: min(440px, 100%);
+  padding: 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.confirmation-modal h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.confirmation-modal p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+@media (max-width: 768px) {
+  .section-heading-with-action {
+    flex-direction: column;
+  }
+
+  .section-actions-inline {
+    width: 100%;
+  }
+
+  .section-actions-inline button {
+    flex: 1 1 auto;
+  }
+
+  .workspace-actions {
+    align-items: stretch;
+  }
+
+  .workspace-actions button,
+  .workspace-actions button:first-child {
+    flex: 1 1 100%;
+    margin-right: 0;
+  }
+}
