@@ -35,6 +35,7 @@ const DOCX_MIME_TYPE =
 const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
 const MAX_UPLOAD_FILE_LABEL = "1 MB";
 const DRAFT_PAGE_SIZE = 5;
+const DRAFT_LOAD_TIMEOUT_MS = 10000;
 const VIEWS = {
   DRAFT_LIST: "draft_list",
   WORKSPACE: "workspace",
@@ -970,12 +971,25 @@ async function refreshDraftSessionsOnStartup() {
   setSessionStatus("Loading draft sessions...", "info");
   setStatus("Loading draft sessions...");
 
-  const loaded = await handleRefreshDraftSessions(null, { silent: true });
+  const loaded = await loadDraftSessionsWithTimeout({ silent: true });
 
-  if (!loaded) {
-    await wait(900);
-    await handleRefreshDraftSessions(null, { silent: true });
+  if (loaded) return;
+
+  await wait(900);
+  const retried = await loadDraftSessionsWithTimeout({ silent: true });
+
+  if (!retried && appState.draftSessions.length === 0) {
+    setSessionStatus("Draft sessions are taking longer than expected. Try reopening the app if they do not appear.", "error");
+    setStatus("Draft sessions could not be loaded yet.");
+    renderDraftSessions();
   }
+}
+
+function loadDraftSessionsWithTimeout(options = {}) {
+  return Promise.race([
+    handleRefreshDraftSessions(null, options),
+    wait(DRAFT_LOAD_TIMEOUT_MS).then(() => false),
+  ]);
 }
 
 function wait(ms) {
