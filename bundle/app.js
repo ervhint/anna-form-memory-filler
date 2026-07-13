@@ -32,6 +32,8 @@ const TOOL_IDS = {
 
 const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
+const MAX_UPLOAD_FILE_LABEL = "1 MB";
 
 let annaClient = null;
 let annaConnectError = null;
@@ -697,6 +699,12 @@ async function handleParseDocuments() {
     return;
   }
 
+  const uploadValidationError = validateUploadedFiles(targetFile, sourceFiles);
+
+  if (uploadValidationError) {
+    setParseError(uploadValidationError);
+    return;
+  }
 
   try {
     appState.parseStatus = "parsing";
@@ -795,14 +803,46 @@ function updateFileSummary(inputId, summaryId, emptyText) {
     return;
   }
 
-  const fileNames = files.map((file) => file.name);
+  const oversizedCount = files.filter(isFileTooLarge).length;
   const displayText =
-    fileNames.length === 1
-      ? fileNames[0]
-      : `${fileNames.length} files selected: ${fileNames.join(", ")}`;
+    files.length === 1
+      ? `${files[0].name} - ${formatFileSize(files[0].size)}`
+      : oversizedCount > 0
+        ? `${files.length} files selected - ${oversizedCount} over ${MAX_UPLOAD_FILE_LABEL}`
+        : `${files.length} files selected - all under ${MAX_UPLOAD_FILE_LABEL}`;
 
   summary.textContent = displayText;
-  summary.title = displayText;
+  summary.title = files
+    .map((file) => `${file.name} - ${formatFileSize(file.size)}`)
+    .join(", ");
+}
+
+function validateUploadedFiles(targetFile, sourceFiles) {
+  if (isFileTooLarge(targetFile)) {
+    return `Target form must be ${MAX_UPLOAD_FILE_LABEL} or smaller.`;
+  }
+
+  const oversizedSource = sourceFiles.find(isFileTooLarge);
+
+  if (oversizedSource) {
+    return `Source document "${oversizedSource.name}" must be ${MAX_UPLOAD_FILE_LABEL} or smaller.`;
+  }
+
+  return "";
+}
+
+function isFileTooLarge(file) {
+  return Boolean(file && file.size > MAX_UPLOAD_FILE_BYTES);
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 async function createParserDocumentInput(file) {
