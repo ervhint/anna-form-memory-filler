@@ -53,6 +53,7 @@ const appState = {
   proposedMemoryUpdates: [],
   savedMemory: [],
   currentSessionId: null,
+  currentSessionTitle: "",
   currentTargetFormFileName: "",
   currentSourceDocumentFileNames: [],
   draftSessions: [],
@@ -621,9 +622,19 @@ function renderDraftSessions() {
 
       return `
         <article class="draft-session-row${isOpen ? " draft-session-row-open" : ""}">
-          <div class="draft-session-main">
-            <h3>${escapeHtml(session.title || "Untitled draft")}</h3>
-            <p>${escapeHtml(session.target_form_file_name || "No target form name")}</p>
+          <div class="draft-session-row-header">
+            <div class="draft-session-main">
+              <h3>${escapeHtml(session.title || "Untitled draft")}</h3>
+              <p>${escapeHtml(session.target_form_file_name || "No target form name")}</p>
+            </div>
+            <details class="draft-session-menu">
+              <summary aria-label="Draft actions">...</summary>
+              <div class="draft-session-menu-list">
+                <button type="button" data-action="rename-draft-session" data-session-id="${escapeHtml(session.id)}">Rename</button>
+                <button type="button" data-action="open-draft-session" data-session-id="${escapeHtml(session.id)}">Modify Draft</button>
+                <button type="button" class="danger-menu-item" data-action="delete-draft-session" data-session-id="${escapeHtml(session.id)}">Delete</button>
+              </div>
+            </details>
           </div>
           <div class="draft-session-meta">
             ${isOpen ? '<span class="status-badge status-approved">Open</span>' : ""}
@@ -631,10 +642,6 @@ function renderDraftSessions() {
             <span>${escapeHtml(Number(session.draft_answer_count || 0))} answers</span>
             <span>${escapeHtml(Number(session.missing_information_count || 0))} missing</span>
             <span>Updated ${escapeHtml(formatMemoryDate(session.updated_at))}</span>
-          </div>
-          <div class="draft-session-actions">
-            <button type="button" class="ghost-button" data-action="open-draft-session" data-session-id="${escapeHtml(session.id)}">Modify Draft</button>
-            <button type="button" class="danger-button" data-action="delete-draft-session" data-session-id="${escapeHtml(session.id)}">Delete</button>
           </div>
         </article>
       `;
@@ -743,6 +750,11 @@ function handleDelegatedClick(event) {
     return;
   }
 
+  if (action === "rename-draft-session" && sessionId) {
+    handleRenameDraftSession(sessionId, button);
+    return;
+  }
+
   if (action === "delete-draft-session" && sessionId) {
     handleDeleteDraftSession(sessionId, button);
     return;
@@ -842,6 +854,7 @@ async function handleSaveDraftSession(button) {
 
     if (session && session.id) {
       appState.currentSessionId = session.id;
+      appState.currentSessionTitle = session.title || appState.currentSessionTitle;
       upsertDraftSessionPreview(session);
     }
 
@@ -919,6 +932,64 @@ async function handleOpenDraftSession(sessionId, button) {
   showTemporaryButtonFeedback(button, "Open failed");
 }
 
+async function handleRenameDraftSession(sessionId, button) {
+  const preview = appState.draftSessions.find((session) => session.id === sessionId);
+  const currentTitle = preview && preview.title ? preview.title : "Untitled draft";
+  const newTitle = await showConfirmation({
+    title: "Rename draft",
+    message: "Enter a clearer name for this saved draft session.",
+    confirmLabel: "Save Name",
+    inputLabel: "Draft name",
+    inputValue: currentTitle,
+    inputPlaceholder: "Draft name",
+  });
+
+  if (!newTitle) return;
+
+  showTemporaryButtonFeedback(button, "Renaming...");
+  setSessionStatus("Renaming draft session...", "info");
+
+  const getResult = await callTool("get_draft_session", { id: sessionId });
+
+  if (!getResult.success || !getResult.data || !getResult.data.session) {
+    const message = getResult.error && getResult.error.message ? getResult.error.message : "Draft session could not be loaded.";
+    setSessionStatus(`Draft session could not be renamed: ${message}`, "error");
+    setStatus(`Draft session could not be renamed: ${message}`);
+    showTemporaryButtonFeedback(button, "Rename failed");
+    return;
+  }
+
+  const sessionPayload = {
+    ...getResult.data.session,
+    title: newTitle,
+  };
+
+  const saveResult = await callTool("save_draft_session", {
+    session: sessionPayload,
+  });
+
+  if (saveResult.success) {
+    const savedSession = saveResult.data && saveResult.data.session
+      ? normalizeDraftSession(saveResult.data.session)
+      : normalizeDraftSession(sessionPayload);
+
+    if (appState.currentSessionId === sessionId) {
+      appState.currentSessionTitle = savedSession.title;
+    }
+
+    upsertDraftSessionPreview(savedSession);
+    setSessionStatus("Draft renamed.", "success");
+    setStatus("Draft renamed.");
+    showTemporaryButtonFeedback(button, "Renamed!");
+    renderDraftSessions();
+    return;
+  }
+
+  const message = saveResult.error && saveResult.error.message ? saveResult.error.message : "Draft session could not be saved.";
+  setSessionStatus(`Draft session could not be renamed: ${message}`, "error");
+  setStatus(`Draft session could not be renamed: ${message}`);
+  showTemporaryButtonFeedback(button, "Rename failed");
+}
 async function handleDeleteDraftSession(sessionId, button) {
   const confirmed = await showConfirmation({
     title: "Delete draft?",
@@ -968,10 +1039,21 @@ async function confirmDiscardIfNeeded(title, message) {
   });
 }
 
-function showConfirmation({ title, message, confirmLabel = "Confirm", danger = false }) {
+function showConfirmation({
+  title,
+  message,
+  confirmLabel = "Confirm",
+  danger = false,
+  inputLabel = "",
+  inputValue = "",
+  inputPlaceholder = "",
+}) {
   const modal = document.getElementById("confirmation-modal");
   const titleTarget = document.getElementById("confirmation-title");
   const messageTarget = document.getElementById("confirmation-message");
+  const inputGroup = document.getElementById("confirmation-input-group");
+  const inputLabelTarget = document.getElementById("confirmation-input-label");
+  const inputTarget = document.getElementById("confirmation-input");
   const cancelButton = document.getElementById("confirmation-cancel-button");
   const confirmButton = document.getElementById("confirmation-confirm-button");
 
@@ -979,12 +1061,28 @@ function showConfirmation({ title, message, confirmLabel = "Confirm", danger = f
     return Promise.resolve(false);
   }
 
+  const hasInput = Boolean(inputLabel && inputGroup && inputLabelTarget && inputTarget);
+
   titleTarget.textContent = title;
   messageTarget.textContent = message;
   confirmButton.textContent = confirmLabel;
   confirmButton.className = danger ? "danger-button" : "primary-button";
+
+  if (inputGroup && inputLabelTarget && inputTarget) {
+    inputGroup.hidden = !hasInput;
+    inputLabelTarget.textContent = inputLabel || "";
+    inputTarget.value = inputValue || "";
+    inputTarget.placeholder = inputPlaceholder || "";
+  }
+
   modal.hidden = false;
-  confirmButton.focus();
+
+  if (hasInput) {
+    inputTarget.focus();
+    inputTarget.select();
+  } else {
+    confirmButton.focus();
+  }
 
   return new Promise((resolve) => {
     function cleanup(result) {
@@ -997,6 +1095,18 @@ function showConfirmation({ title, message, confirmLabel = "Confirm", danger = f
     }
 
     function handleConfirm() {
+      if (hasInput) {
+        const value = inputTarget.value.trim();
+
+        if (!value) {
+          inputTarget.focus();
+          return;
+        }
+
+        cleanup(value);
+        return;
+      }
+
       cleanup(true);
     }
 
@@ -1013,6 +1123,11 @@ function showConfirmation({ title, message, confirmLabel = "Confirm", danger = f
     function handleKeyDown(event) {
       if (event.key === "Escape") {
         cleanup(false);
+      }
+
+      if (hasInput && event.key === "Enter") {
+        event.preventDefault();
+        handleConfirm();
       }
     }
 
@@ -2602,6 +2717,7 @@ function clearWorkspaceForNewSession() {
   appState.draftStatus = "idle";
   appState.draftError = null;
   appState.currentSessionId = null;
+  appState.currentSessionTitle = "";
   appState.currentTargetFormFileName = "";
   appState.currentSourceDocumentFileNames = [];
   appState.sessionDirty = false;
@@ -2630,9 +2746,11 @@ function hasVisibleWorkspaceData() {
 }
 
 function createDraftSessionPayload() {
-  const overviewTitle = appState.formOverview && appState.formOverview.title
-    ? appState.formOverview.title
-    : appState.currentTargetFormFileName || "Untitled draft";
+  const overviewTitle =
+    appState.currentSessionTitle ||
+    (appState.formOverview && appState.formOverview.title) ||
+    appState.currentTargetFormFileName ||
+    "Untitled draft";
 
   const payload = {
     title: overviewTitle,
@@ -2654,6 +2772,7 @@ function createDraftSessionPayload() {
 function loadDraftSessionSnapshot(session) {
   const source = session && typeof session === "object" ? session : {};
   appState.currentSessionId = source.id || null;
+  appState.currentSessionTitle = source.title || "";
   appState.currentTargetFormFileName = source.target_form_file_name || "";
   appState.currentSourceDocumentFileNames = normalizeArray(source.source_document_file_names);
   appState.formOverview = source.formOverview || null;

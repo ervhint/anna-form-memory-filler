@@ -136,6 +136,10 @@
         <section class="confirmation-modal" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
           <h2 id="confirmation-title">Confirm action</h2>
           <p id="confirmation-message">Are you sure?</p>
+          <div id="confirmation-input-group" class="modal-input-group" hidden>
+            <label id="confirmation-input-label" for="confirmation-input">Draft name</label>
+            <input id="confirmation-input" type="text" autocomplete="off">
+          </div>
           <div class="modal-actions">
             <button id="confirmation-cancel-button" type="button">Cancel</button>
             <button id="confirmation-confirm-button" class="danger-button" type="button">Confirm</button>
