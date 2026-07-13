@@ -59,6 +59,7 @@ const appState = {
   currentTargetFormFileName: "",
   currentSourceDocumentFileNames: [],
   draftSessions: [],
+  draftSessionsLoaded: false,
   draftVisibleCount: DRAFT_PAGE_SIZE,
   draftSearchQuery: "",
   sessionDirty: false,
@@ -706,9 +707,13 @@ function renderDraftListControls(filteredCount) {
   if (!button) return;
 
   const hasMore = filteredCount > appState.draftVisibleCount;
-  button.disabled = !hasMore;
+  button.disabled = appState.draftSessionsLoaded && !hasMore;
   button.textContent = "Load More Drafts";
-  button.title = hasMore ? "Load 5 more drafts" : "No more drafts to load";
+  button.title = !appState.draftSessionsLoaded
+    ? "Load saved drafts"
+    : hasMore
+      ? "Load 5 more drafts"
+      : "No more drafts to load";
 }
 
 function syncDraftSearchInput() {
@@ -942,7 +947,12 @@ async function handleSaveDraftSession(button) {
   showTemporaryButtonFeedback(button, "Save failed");
 }
 
-function handleLoadMoreDrafts() {
+async function handleLoadMoreDrafts() {
+  if (!appState.draftSessionsLoaded) {
+    await handleRefreshDraftSessions(document.getElementById("load-more-drafts-button"));
+    return;
+  }
+
   const filteredCount = getFilteredDraftSessions().length;
 
   appState.draftVisibleCount = Math.min(
@@ -1004,9 +1014,18 @@ async function handleRefreshDraftSessions(button, options = {}) {
     showTemporaryButtonFeedback(button, "Refreshing...");
   }
 
-  const result = await callTool("list_draft_sessions", {});
+  const result = await callToolWithTimeout(
+    "list_draft_sessions",
+    {},
+    DRAFT_LOAD_TIMEOUT_MS,
+    {
+      code: "DRAFT_SESSIONS_TIMEOUT",
+      message: "Draft sessions are taking longer than expected. Try again in a moment.",
+    }
+  );
 
   if (result.success) {
+    appState.draftSessionsLoaded = true;
     appState.draftSessions = normalizeArray(result.data && result.data.sessions)
       .map(normalizeDraftSession)
       .sort(compareDraftSessionsNewestFirst);
@@ -1022,6 +1041,7 @@ async function handleRefreshDraftSessions(button, options = {}) {
     return true;
   }
 
+  appState.draftSessionsLoaded = false;
   const message = result.error && result.error.message ? result.error.message : "Draft sessions could not be loaded.";
   setSessionStatus(`Draft sessions could not be loaded: ${message}`, "error");
   setStatus(`Draft sessions could not be loaded: ${message}`);
@@ -2612,6 +2632,18 @@ async function handleDeleteMemoryItem(memoryId, button) {
   setStatus(`Memory could not be deleted: ${message}`);
 }
 
+async function callToolWithTimeout(toolName, args = {}, timeoutMs = 10000, timeoutError = null, options = {}) {
+  return Promise.race([
+    callTool(toolName, args, options),
+    wait(timeoutMs).then(() => ({
+      success: false,
+      error: timeoutError || {
+        code: "TOOL_TIMEOUT",
+        message: "Tool call timed out.",
+      },
+    })),
+  ]);
+}
 async function callTool(toolName, args = {}, options = {}) {
   const toolId = options.toolId || getToolIdForMethod(toolName);
   const bridge = getToolBridge();
