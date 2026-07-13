@@ -1009,7 +1009,14 @@ textarea:focus-visible {
   border: 1px solid var(--border);
   border-radius: 999px;
   cursor: pointer;
+  line-height: 1;
   user-select: none;
+}
+
+.draft-session-menu summary span {
+  display: block;
+  line-height: 0;
+  transform: translateY(-2px);
 }
 
 .draft-session-menu summary::-webkit-details-marker {

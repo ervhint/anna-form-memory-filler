@@ -89,6 +89,7 @@ async function init() {
   }
 
   renderBridgeDiagnostics();
+  await refreshDraftSessionsOnStartup();
 }
 
 function attachEventListeners() {
@@ -628,7 +629,7 @@ function renderDraftSessions() {
               <p>${escapeHtml(session.target_form_file_name || "No target form name")}</p>
             </div>
             <details class="draft-session-menu">
-              <summary aria-label="Draft actions">...</summary>
+              <summary aria-label="Draft actions"><span aria-hidden="true">...</span></summary>
               <div class="draft-session-menu-list">
                 <button type="button" data-action="rename-draft-session" data-session-id="${escapeHtml(session.id)}">Rename</button>
                 <button type="button" data-action="open-draft-session" data-session-id="${escapeHtml(session.id)}">Modify Draft</button>
@@ -872,6 +873,22 @@ async function handleSaveDraftSession(button) {
   showTemporaryButtonFeedback(button, "Save failed");
 }
 
+async function refreshDraftSessionsOnStartup() {
+  setSessionStatus("Loading draft sessions...", "info");
+  setStatus("Loading draft sessions...");
+
+  const loaded = await handleRefreshDraftSessions(null, { silent: true });
+
+  if (!loaded) {
+    await wait(900);
+    await handleRefreshDraftSessions(null, { silent: true });
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 async function handleRefreshDraftSessions(button, options = {}) {
   const silent = options.silent === true;
 
@@ -892,7 +909,7 @@ async function handleRefreshDraftSessions(button, options = {}) {
     }
 
     renderDraftSessions();
-    return;
+    return true;
   }
 
   const message = result.error && result.error.message ? result.error.message : "Draft sessions could not be loaded.";
@@ -902,6 +919,8 @@ async function handleRefreshDraftSessions(button, options = {}) {
   if (!silent) {
     showTemporaryButtonFeedback(button, "Refresh failed");
   }
+
+  return false;
 }
 
 async function handleOpenDraftSession(sessionId, button) {
