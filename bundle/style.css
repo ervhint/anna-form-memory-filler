@@ -1001,6 +1001,7 @@ textarea:focus-visible {
 }
 
 .draft-session-menu summary {
+  position: relative;
   display: grid;
   place-items: center;
   width: 36px;
@@ -1009,14 +1010,26 @@ textarea:focus-visible {
   border: 1px solid var(--border);
   border-radius: 999px;
   cursor: pointer;
-  line-height: 1;
   user-select: none;
 }
 
 .draft-session-menu summary span {
-  display: block;
-  line-height: 0;
-  transform: translateY(-2px);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.draft-session-menu summary::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 999px;
+  box-shadow: -7px 0 0 currentColor, 7px 0 0 currentColor;
 }
 
 .draft-session-menu summary::-webkit-details-marker {
