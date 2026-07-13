@@ -36,6 +36,7 @@ const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
 const MAX_UPLOAD_FILE_LABEL = "1 MB";
 const DRAFT_PAGE_SIZE = 5;
 const DRAFT_LOAD_TIMEOUT_MS = 10000;
+const ANNA_CONNECT_TIMEOUT_MS = 5000;
 const VIEWS = {
   DRAFT_LIST: "draft_list",
   WORKSPACE: "workspace",
@@ -44,6 +45,7 @@ const VIEWS = {
 let annaClient = null;
 let annaConnectError = null;
 let currentBridgeSource = "none";
+let annaConnectPromise = null;
 
 const appState = {
   status: "idle",
@@ -81,20 +83,67 @@ async function init() {
   renderApp();
   setStatus("Choose a draft or create a new draft.");
   setUploadStatus("Parse button ready.");
+  setSessionStatus("Preparing draft sessions...", "info");
 
-  try {
-    annaClient = await AnnaAppRuntime.connect();
-    annaConnectError = null;
-    currentBridgeSource = "AnnaAppRuntime.connect";
-  } catch (error) {
-    annaClient = null;
-    annaConnectError = error;
-    currentBridgeSource = "none";
+  connectAnnaRuntimeInBackground();
+}
+
+function connectAnnaRuntimeInBackground() {
+  const connectPromise = ensureAnnaRuntimeConnected();
+
+  connectPromise.then((connected) => {
+    if (connected) {
+      refreshDraftSessionsOnStartup();
+      return;
+    }
+
     setUploadStatus("Anna bridge is unavailable. Upload UI is ready, but tools may not run.", "error");
+    setSessionStatus("Draft sessions could not be loaded because Anna bridge is unavailable.", "error");
+    renderBridgeDiagnostics();
+    renderDraftSessions();
+  });
+
+  Promise.race([
+    connectPromise,
+    wait(ANNA_CONNECT_TIMEOUT_MS).then(() => false),
+  ]).then((connectedQuickly) => {
+    if (!connectedQuickly && !annaClient) {
+      annaConnectError = new Error("Anna bridge connection is taking longer than expected.");
+      currentBridgeSource = "none";
+      setSessionStatus("Connecting to Anna. Drafts will load when the app is ready.", "info");
+      renderBridgeDiagnostics();
+      renderDraftSessions();
+    }
+  });
+}
+
+function ensureAnnaRuntimeConnected() {
+  if (annaClient && annaClient.tools && typeof annaClient.tools.invoke === "function") {
+    return Promise.resolve(true);
   }
 
-  renderBridgeDiagnostics();
-  await refreshDraftSessionsOnStartup();
+  if (!annaConnectPromise) {
+    annaConnectPromise = AnnaAppRuntime.connect()
+      .then((client) => {
+        annaClient = client;
+        annaConnectError = null;
+        currentBridgeSource = "AnnaAppRuntime.connect";
+        renderBridgeDiagnostics();
+        return true;
+      })
+      .catch((error) => {
+        annaClient = null;
+        annaConnectError = error;
+        currentBridgeSource = "none";
+        renderBridgeDiagnostics();
+        return false;
+      })
+      .finally(() => {
+        annaConnectPromise = null;
+      });
+  }
+
+  return annaConnectPromise;
 }
 
 function attachEventListeners() {
@@ -628,6 +677,15 @@ function renderDraftSessions() {
   setSessionStatus(appState.sessionStatusMessage, appState.sessionStatus);
   syncDraftSearchInput();
 
+  if (!appState.draftSessionsLoaded && appState.draftSessions.length === 0) {
+    const message = appState.sessionStatus === "error"
+      ? "Drafts could not be loaded yet. Use Load More Drafts to try again."
+      : "Loading saved drafts...";
+    target.innerHTML = renderEmptyState(message);
+    renderDraftListControls(0);
+    return;
+  }
+
   if (appState.draftSessions.length === 0) {
     target.innerHTML = renderEmptyState("No draft sessions saved yet.");
     renderDraftListControls(0);
@@ -948,8 +1006,10 @@ async function handleSaveDraftSession(button) {
 }
 
 async function handleLoadMoreDrafts() {
+  const button = document.getElementById("load-more-drafts-button");
+
   if (!appState.draftSessionsLoaded) {
-    await handleRefreshDraftSessions(document.getElementById("load-more-drafts-button"));
+    await handleRefreshDraftSessions(button);
     return;
   }
 
@@ -1011,7 +1071,25 @@ async function handleRefreshDraftSessions(button, options = {}) {
 
   if (!silent) {
     setSessionStatus("Loading draft sessions...", "info");
-    showTemporaryButtonFeedback(button, "Refreshing...");
+    showTemporaryButtonFeedback(button, "Loading...");
+  }
+
+  const connected = await Promise.race([
+    ensureAnnaRuntimeConnected(),
+    wait(ANNA_CONNECT_TIMEOUT_MS).then(() => false),
+  ]);
+
+  if (!connected) {
+    appState.draftSessionsLoaded = false;
+    setSessionStatus("Draft sessions could not be loaded because Anna is not ready yet. Try Load More Drafts again.", "error");
+    setStatus("Draft sessions could not be loaded yet.");
+
+    if (!silent) {
+      showTemporaryButtonFeedback(button, "Try again");
+    }
+
+    renderDraftSessions();
+    return false;
   }
 
   const result = await callToolWithTimeout(
@@ -1034,7 +1112,7 @@ async function handleRefreshDraftSessions(button, options = {}) {
     setStatus("Draft sessions loaded.");
 
     if (!silent) {
-      showTemporaryButtonFeedback(button, "Refreshed!");
+      showTemporaryButtonFeedback(button, "Loaded!");
     }
 
     renderDraftSessions();
@@ -1047,7 +1125,7 @@ async function handleRefreshDraftSessions(button, options = {}) {
   setStatus(`Draft sessions could not be loaded: ${message}`);
 
   if (!silent) {
-    showTemporaryButtonFeedback(button, "Refresh failed");
+    showTemporaryButtonFeedback(button, "Load failed");
   }
 
   return false;
