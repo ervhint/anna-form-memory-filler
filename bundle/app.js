@@ -34,6 +34,7 @@ const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
 const MAX_UPLOAD_FILE_LABEL = "1 MB";
+const DRAFT_PAGE_SIZE = 5;
 const VIEWS = {
   DRAFT_LIST: "draft_list",
   WORKSPACE: "workspace",
@@ -57,6 +58,8 @@ const appState = {
   currentTargetFormFileName: "",
   currentSourceDocumentFileNames: [],
   draftSessions: [],
+  draftVisibleCount: DRAFT_PAGE_SIZE,
+  draftSearchQuery: "",
   sessionDirty: false,
   sessionStatus: "info",
   sessionStatusMessage: "No draft session open.",
@@ -105,7 +108,9 @@ function attachEventListeners() {
   const sourceFileInput = document.getElementById("source-document-files");
   const newDraftButton = document.getElementById("new-draft-button");
   const saveDraftSessionButton = document.getElementById("save-draft-session-button");
-  const refreshDraftSessionsButton = document.getElementById("refresh-draft-sessions-button");
+  const loadMoreDraftsButton = document.getElementById("load-more-drafts-button");
+  const searchDraftsButton = document.getElementById("search-drafts-button");
+  const draftSearchInput = document.getElementById("draft-search-input");
   const backToDraftListButton = document.getElementById("back-to-draft-list-button");
   const cancelWorkspaceButton = document.getElementById("cancel-workspace-button");
 
@@ -145,10 +150,22 @@ function attachEventListeners() {
     saveDraftSessionButton.addEventListener("click", () => handleSaveDraftSession(saveDraftSessionButton));
   }
 
-  if (refreshDraftSessionsButton) {
-    refreshDraftSessionsButton.addEventListener("click", () => handleRefreshDraftSessions(refreshDraftSessionsButton));
+  if (loadMoreDraftsButton) {
+    loadMoreDraftsButton.addEventListener("click", handleLoadMoreDrafts);
   }
 
+  if (searchDraftsButton) {
+    searchDraftsButton.addEventListener("click", handleSearchDrafts);
+  }
+
+  if (draftSearchInput) {
+    draftSearchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSearchDrafts();
+      }
+    });
+  }
   if (backToDraftListButton) {
     backToDraftListButton.addEventListener("click", handleBackToDraftList);
   }
@@ -607,13 +624,24 @@ function renderDraftSessions() {
   if (!target) return;
 
   setSessionStatus(appState.sessionStatusMessage, appState.sessionStatus);
+  syncDraftSearchInput();
 
   if (appState.draftSessions.length === 0) {
     target.innerHTML = renderEmptyState("No draft sessions saved yet.");
+    renderDraftListControls(0);
     return;
   }
 
-  target.innerHTML = appState.draftSessions
+  const filteredSessions = getFilteredDraftSessions();
+  const visibleSessions = filteredSessions.slice(0, appState.draftVisibleCount);
+  renderDraftListControls(filteredSessions.length);
+
+  if (visibleSessions.length === 0) {
+    target.innerHTML = renderEmptyState("No drafts match your search.");
+    return;
+  }
+
+  target.innerHTML = visibleSessions
     .map((session) => {
       const isOpen = session.id && session.id === appState.currentSessionId;
       const sourceNames = normalizeArray(session.source_document_file_names);
@@ -648,6 +676,46 @@ function renderDraftSessions() {
       `;
     })
     .join("");
+}
+
+function getFilteredDraftSessions() {
+  const query = appState.draftSearchQuery.trim().toLowerCase();
+
+  if (!query) {
+    return appState.draftSessions;
+  }
+
+  return appState.draftSessions.filter((session) => {
+    const searchableText = [
+      session.title,
+      session.target_form_file_name,
+      ...normalizeArray(session.source_document_file_names),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(query);
+  });
+}
+
+function renderDraftListControls(filteredCount) {
+  const button = document.getElementById("load-more-drafts-button");
+
+  if (!button) return;
+
+  const hasMore = filteredCount > appState.draftVisibleCount;
+  button.disabled = !hasMore;
+  button.textContent = "Load More Drafts";
+  button.title = hasMore ? "Load 5 more drafts" : "No more drafts to load";
+}
+
+function syncDraftSearchInput() {
+  const input = document.getElementById("draft-search-input");
+
+  if (!input || document.activeElement === input) return;
+
+  input.value = appState.draftSearchQuery;
 }
 function renderSavedMemory() {
   const target = document.getElementById("saved-memory-list");
@@ -873,6 +941,31 @@ async function handleSaveDraftSession(button) {
   showTemporaryButtonFeedback(button, "Save failed");
 }
 
+function handleLoadMoreDrafts() {
+  const filteredCount = getFilteredDraftSessions().length;
+
+  appState.draftVisibleCount = Math.min(
+    appState.draftVisibleCount + DRAFT_PAGE_SIZE,
+    filteredCount
+  );
+
+  setStatus("More drafts loaded.");
+  renderDraftSessions();
+}
+
+function handleSearchDrafts() {
+  const input = document.getElementById("draft-search-input");
+  appState.draftSearchQuery = input ? input.value.trim() : "";
+  appState.draftVisibleCount = DRAFT_PAGE_SIZE;
+
+  const count = getFilteredDraftSessions().length;
+  setStatus(
+    appState.draftSearchQuery
+      ? `${count} draft${count === 1 ? "" : "s"} matched your search.`
+      : "Showing latest drafts."
+  );
+  renderDraftSessions();
+}
 async function refreshDraftSessionsOnStartup() {
   setSessionStatus("Loading draft sessions...", "info");
   setStatus("Loading draft sessions...");
@@ -900,7 +993,10 @@ async function handleRefreshDraftSessions(button, options = {}) {
   const result = await callTool("list_draft_sessions", {});
 
   if (result.success) {
-    appState.draftSessions = normalizeArray(result.data && result.data.sessions).map(normalizeDraftSession);
+    appState.draftSessions = normalizeArray(result.data && result.data.sessions)
+      .map(normalizeDraftSession)
+      .sort(compareDraftSessionsNewestFirst);
+    appState.draftVisibleCount = DRAFT_PAGE_SIZE;
     setSessionStatus(appState.draftSessions.length > 0 ? "Draft sessions loaded." : "No draft sessions saved yet.", "info");
     setStatus("Draft sessions loaded.");
 
@@ -1547,7 +1643,9 @@ function createCompactEvidencePrompt() {
     JSON.stringify(getCompactEvidenceSchemaExample(), null, 2),
     "Extracted document text:",
     JSON.stringify(createExtractedTextInputForAi(appState.evidenceJson), null, 2),
-  ].join("\n\n");
+  ].join("
+
+");
 }
 
 function createExtractedTextInputForAi(evidence) {
@@ -1643,7 +1741,9 @@ function createDraftGenerationPrompt() {
     JSON.stringify(getAnswerSelectionSchemaExample(), null, 2),
     "Answer Evidence JSON:",
     JSON.stringify(createAnswerEvidenceForAi(), null, 2),
-  ].join("\n\n");
+  ].join("
+
+");
 }
 
 function getAnswerSelectionSchemaExample() {
@@ -2834,10 +2934,12 @@ function upsertDraftSessionPreview(session) {
 
   if (existingIndex >= 0) {
     appState.draftSessions.splice(existingIndex, 1, session);
+    appState.draftSessions.sort(compareDraftSessionsNewestFirst);
     return;
   }
 
   appState.draftSessions.unshift(session);
+  appState.draftSessions.sort(compareDraftSessionsNewestFirst);
 }
 
 function syncDraftAnswerInputsToState() {
@@ -2850,6 +2952,12 @@ function syncDraftAnswerInputsToState() {
       answer.answer = input.value;
     }
   }
+}
+
+function compareDraftSessionsNewestFirst(a, b) {
+  const aTime = new Date(a && a.updated_at ? a.updated_at : 0).getTime();
+  const bTime = new Date(b && b.updated_at ? b.updated_at : 0).getTime();
+  return bTime - aTime;
 }
 function clonePlainObject(value) {
   return JSON.parse(JSON.stringify(value || {}));
