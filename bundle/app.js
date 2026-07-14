@@ -57,6 +57,7 @@ const appState = {
   currentTargetFormFileName: "",
   currentSourceDocumentFileNames: [],
   draftSessions: [],
+  draftSearchQuery: "",
   sessionDirty: false,
   sessionStatus: "info",
   sessionStatusMessage: "No draft session open.",
@@ -106,6 +107,8 @@ function attachEventListeners() {
   const newDraftButton = document.getElementById("new-draft-button");
   const saveDraftSessionButton = document.getElementById("save-draft-session-button");
   const refreshDraftSessionsButton = document.getElementById("refresh-draft-sessions-button");
+  const searchDraftsButton = document.getElementById("search-drafts-button");
+  const draftSearchInput = document.getElementById("draft-search-input");
   const backToDraftListButton = document.getElementById("back-to-draft-list-button");
   const cancelWorkspaceButton = document.getElementById("cancel-workspace-button");
 
@@ -149,6 +152,18 @@ function attachEventListeners() {
     refreshDraftSessionsButton.addEventListener("click", () => handleRefreshDraftSessions(refreshDraftSessionsButton));
   }
 
+  if (searchDraftsButton) {
+    searchDraftsButton.addEventListener("click", handleSearchDrafts);
+  }
+
+  if (draftSearchInput) {
+    draftSearchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSearchDrafts();
+      }
+    });
+  }
   if (backToDraftListButton) {
     backToDraftListButton.addEventListener("click", handleBackToDraftList);
   }
@@ -613,7 +628,14 @@ function renderDraftSessions() {
     return;
   }
 
-  target.innerHTML = appState.draftSessions
+  const filteredSessions = getFilteredDraftSessions();
+
+  if (filteredSessions.length === 0) {
+    target.innerHTML = renderEmptyState("No drafts match your search.");
+    return;
+  }
+
+  target.innerHTML = filteredSessions
     .map((session) => {
       const isOpen = session.id && session.id === appState.currentSessionId;
       const sourceNames = normalizeArray(session.source_document_file_names);
@@ -648,6 +670,39 @@ function renderDraftSessions() {
       `;
     })
     .join("");
+}
+function getFilteredDraftSessions() {
+  const query = appState.draftSearchQuery.trim().toLowerCase();
+
+  if (!query) {
+    return appState.draftSessions;
+  }
+
+  return appState.draftSessions.filter((session) => {
+    const searchableText = [
+      session.title,
+      session.target_form_file_name,
+      ...normalizeArray(session.source_document_file_names),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(query);
+  });
+}
+
+function handleSearchDrafts() {
+  const input = document.getElementById("draft-search-input");
+  appState.draftSearchQuery = input ? input.value.trim() : "";
+
+  const count = getFilteredDraftSessions().length;
+  setStatus(
+    appState.draftSearchQuery
+      ? `${count} draft${count === 1 ? "" : "s"} matched your search.`
+      : "Showing all loaded drafts."
+  );
+  renderDraftSessions();
 }
 function renderSavedMemory() {
   const target = document.getElementById("saved-memory-list");

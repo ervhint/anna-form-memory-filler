@@ -1115,3 +1115,32 @@ textarea:focus-visible {
     right: -2px;
   }
 }
+
+.draft-search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.draft-search-controls input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.draft-search-controls input:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.22);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+@media (max-width: 640px) {
+  .draft-search-controls {
+    grid-template-columns: 1fr;
+  }
+}
