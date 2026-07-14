@@ -1144,3 +1144,13 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.draft-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.draft-load-more button {
+  min-width: 180px;
+}

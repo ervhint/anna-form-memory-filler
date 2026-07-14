@@ -34,6 +34,7 @@ const DOCX_MIME_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_UPLOAD_FILE_BYTES = 1024 * 1024;
 const MAX_UPLOAD_FILE_LABEL = "1 MB";
+const DRAFT_PAGE_SIZE = 5;
 const VIEWS = {
   DRAFT_LIST: "draft_list",
   WORKSPACE: "workspace",
@@ -58,6 +59,7 @@ const appState = {
   currentSourceDocumentFileNames: [],
   draftSessions: [],
   draftSearchQuery: "",
+  draftVisibleCount: DRAFT_PAGE_SIZE,
   sessionDirty: false,
   sessionStatus: "info",
   sessionStatusMessage: "No draft session open.",
@@ -635,7 +637,10 @@ function renderDraftSessions() {
     return;
   }
 
-  target.innerHTML = filteredSessions
+  const visibleSessions = filteredSessions.slice(0, appState.draftVisibleCount);
+  const hasMoreDrafts = filteredSessions.length > visibleSessions.length;
+
+  const cardsHtml = visibleSessions
     .map((session) => {
       const isOpen = session.id && session.id === appState.currentSessionId;
       const sourceNames = normalizeArray(session.source_document_file_names);
@@ -670,6 +675,12 @@ function renderDraftSessions() {
       `;
     })
     .join("");
+
+  const loadMoreHtml = hasMoreDrafts
+    ? `<div class="draft-load-more"><button type="button" data-action="load-more-drafts">Load More Drafts</button></div>`
+    : "";
+
+  target.innerHTML = cardsHtml + loadMoreHtml;
 }
 function getFilteredDraftSessions() {
   const query = appState.draftSearchQuery.trim().toLowerCase();
@@ -695,6 +706,7 @@ function getFilteredDraftSessions() {
 function handleSearchDrafts() {
   const input = document.getElementById("draft-search-input");
   appState.draftSearchQuery = input ? input.value.trim() : "";
+  appState.draftVisibleCount = DRAFT_PAGE_SIZE;
 
   const count = getFilteredDraftSessions().length;
   setStatus(
@@ -704,6 +716,17 @@ function handleSearchDrafts() {
   );
   renderDraftSessions();
 }
+
+function handleLoadMoreDrafts() {
+  const filteredCount = getFilteredDraftSessions().length;
+  appState.draftVisibleCount = Math.min(
+    appState.draftVisibleCount + DRAFT_PAGE_SIZE,
+    filteredCount
+  );
+  setStatus("More drafts loaded.");
+  renderDraftSessions();
+}
+
 function renderSavedMemory() {
   const target = document.getElementById("saved-memory-list");
 
@@ -816,6 +839,10 @@ function handleDelegatedClick(event) {
     return;
   }
 
+  if (action === "load-more-drafts") {
+    handleLoadMoreDrafts();
+    return;
+  }
   if (action === "delete-memory" && memoryId) {
     handleDeleteMemoryItem(memoryId, button);
     return;
@@ -956,6 +983,7 @@ async function handleRefreshDraftSessions(button, options = {}) {
 
   if (result.success) {
     appState.draftSessions = normalizeArray(result.data && result.data.sessions).map(normalizeDraftSession);
+    appState.draftVisibleCount = DRAFT_PAGE_SIZE;
     setSessionStatus(appState.draftSessions.length > 0 ? "Draft sessions loaded." : "No draft sessions saved yet.", "info");
     setStatus("Draft sessions loaded.");
 
